@@ -3,8 +3,15 @@ import {
   KITCHEN_BOUNDS,
   KITCHEN_OBSTACLES,
   KITCHEN_STATIONS,
+  KITCHEN_TO_MARKET_DOOR,
   PLAYER_HALF_EXTENT,
 } from '../config/kitchenLayout';
+import {
+  MARKET_BOUNDS,
+  MARKET_OBSTACLES,
+  MARKET_STALLS,
+  MARKET_TO_KITCHEN_DOOR,
+} from '../config/marketLayout';
 import { isPointWalkable, resolveMovement2D } from '../domain/collision2d';
 
 describe('collision2d', () => {
@@ -31,17 +38,35 @@ describe('collision2d', () => {
       KITCHEN_BOUNDS,
     );
 
-    // X slides freely, Z stops flush at back_counter_line.maxZ + PLAYER_HALF_EXTENT
     expect(result.x).toBeCloseTo(1.0, 5);
     expect(result.z).toBeCloseTo(-1.9 + PLAYER_HALF_EXTENT, 5);
   });
 
-  it('ensures every station interactionPoint is walkable', () => {
+  it('ensures every kitchen station (including unobstructed fridge) and doorway is walkable', () => {
     for (const station of Object.values(KITCHEN_STATIONS)) {
       const [ix, iz] = station.interactionPoint;
       expect(
         isPointWalkable(ix, iz, PLAYER_HALF_EXTENT, KITCHEN_OBSTACLES, KITCHEN_BOUNDS),
       ).toBe(true);
     }
+
+    const [dx, dz] = KITCHEN_TO_MARKET_DOOR.interactionPoint;
+    expect(
+      isPointWalkable(dx, dz, PLAYER_HALF_EXTENT, KITCHEN_OBSTACLES, KITCHEN_BOUNDS),
+    ).toBe(true);
+  });
+
+  it('ensures every 3D Market stall and exit doorway is walkable', () => {
+    for (const stall of Object.values(MARKET_STALLS)) {
+      const [ix, iz] = stall.interactionPoint;
+      expect(
+        isPointWalkable(ix, iz, PLAYER_HALF_EXTENT, MARKET_OBSTACLES, MARKET_BOUNDS),
+      ).toBe(true);
+    }
+
+    const [dx, dz] = MARKET_TO_KITCHEN_DOOR.interactionPoint;
+    expect(
+      isPointWalkable(dx, dz, PLAYER_HALF_EXTENT, MARKET_OBSTACLES, MARKET_BOUNDS),
+    ).toBe(true);
   });
 });

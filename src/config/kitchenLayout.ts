@@ -1,3 +1,4 @@
+export type RoomId = 'kitchen' | 'market';
 export type StationId = 'fridge' | 'cutting_board' | 'stove';
 
 export interface Aabb2D {
@@ -31,6 +32,15 @@ export interface StationLayoutDef {
   requiresLock: boolean;
 }
 
+export interface RoomDoorDef {
+  targetRoom: RoomId;
+  label: string;
+  icon: string;
+  position: readonly [number, number, number];
+  interactionPoint: readonly [number, number];
+  facingAngle: number;
+}
+
 /** Fixed 8m x 6m isometric kitchen (1 unit = 1 meter) */
 export const KITCHEN_BOUNDS: RoomBounds = {
   minX: -4,
@@ -41,14 +51,14 @@ export const KITCHEN_BOUNDS: RoomBounds = {
 
 export const GRID_CELL_SIZE = 0.5; // 16 x 12 navigation grid
 export const PLAYER_HALF_EXTENT = 0.28;
-export const PLAYER_SPEED = 2.85; // meters per second
+export const PLAYER_SPEED = 2.95; // meters per second
 
 /**
  * Static 2D AABB obstacles in the XZ plane (no physics engine!).
- * Leaves wide >= 1.5m walkways so 2 players move comfortably.
+ * Left counter joins the back wall cleanly; Fridge stands unobstructed at the far-right back wall!
  */
 export const KITCHEN_OBSTACLES: readonly Aabb2D[] = [
-  // Arka tezgah hattı (Buzdolabı + Kesme Tahtası + Ocak)
+  // Arka tezgah + Kesme Tahtası + Ocak + Buzdolabı (sağ uçta tamamen engelsiz)
   {
     id: 'back_counter_line',
     minX: -4.0,
@@ -56,43 +66,32 @@ export const KITCHEN_OBSTACLES: readonly Aabb2D[] = [
     minZ: -3.0,
     maxZ: -1.9,
   },
-  // Sol duvar yan tezgah + evye hattı
+  // Sol duvar evye tezgahı (kapıya geniş geçiş bırakır)
   {
     id: 'left_side_counter',
     minX: -4.0,
     maxX: -2.95,
     minZ: -1.9,
-    maxZ: 1.15,
+    maxZ: 0.95,
   },
-  // Ortada kompakt servis adası (A* rota bulma test & mutfak estetiği)
+  // Ortada kompakt kahvaltı adası
   {
     id: 'center_island',
-    minX: -0.85,
-    maxX: 0.85,
-    minZ: 0.5,
+    minX: -0.8,
+    maxX: 0.8,
+    minZ: 0.55,
     maxZ: 1.45,
   },
 ];
 
 export const KITCHEN_STATIONS: Record<StationId, StationLayoutDef> = {
-  fridge: {
-    id: 'fridge',
-    label: 'Buzdolabı',
-    subtitle: 'Ortak Ev Stoğu',
-    icon: '🧊',
-    position: [-3.25, 0, -2.4],
-    interactionPoint: [-2.2, -1.45],
-    facingAngle: -Math.PI * 0.72,
-    hitboxSize: [1.15, 2.05, 1.0],
-    requiresLock: false,
-  },
   cutting_board: {
     id: 'cutting_board',
     label: 'Kesme Tahtası',
     subtitle: 'Malzeme Hazırlığı',
     icon: '🔪',
-    position: [0.0, 0, -2.42],
-    interactionPoint: [0.0, -1.45],
+    position: [-1.15, 0, -2.42],
+    interactionPoint: [-1.15, -1.42],
     facingAngle: Math.PI,
     hitboxSize: [1.35, 1.3, 1.0],
     requiresLock: true,
@@ -102,16 +101,37 @@ export const KITCHEN_STATIONS: Record<StationId, StationLayoutDef> = {
     label: 'Ocak',
     subtitle: 'Yemek Pişirme',
     icon: '🔥',
-    position: [2.4, 0, -2.42],
-    interactionPoint: [2.4, -1.45],
+    position: [1.05, 0, -2.42],
+    interactionPoint: [1.05, -1.42],
     facingAngle: Math.PI,
     hitboxSize: [1.35, 1.45, 1.0],
     requiresLock: true,
   },
+  fridge: {
+    id: 'fridge',
+    label: 'Buzdolabı',
+    subtitle: 'Ortak Ev Stoğu',
+    icon: '🧊',
+    // Unobstructed right-end placement so double doors open freely into +Z floor!
+    position: [3.22, 0, -2.42],
+    interactionPoint: [3.12, -1.38],
+    facingAngle: Math.PI,
+    hitboxSize: [1.15, 2.05, 1.0],
+    requiresLock: false,
+  },
+};
+
+export const KITCHEN_TO_MARKET_DOOR: RoomDoorDef = {
+  targetRoom: 'market',
+  label: 'Markete Git',
+  icon: '🛒',
+  position: [-3.95, 0, 2.0],
+  interactionPoint: [-3.15, 2.0],
+  facingAngle: -Math.PI / 2,
 };
 
 export const STATION_LIST: readonly StationLayoutDef[] = [
-  KITCHEN_STATIONS.fridge,
   KITCHEN_STATIONS.cutting_board,
   KITCHEN_STATIONS.stove,
+  KITCHEN_STATIONS.fridge,
 ];

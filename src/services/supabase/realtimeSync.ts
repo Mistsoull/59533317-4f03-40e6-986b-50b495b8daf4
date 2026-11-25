@@ -1,7 +1,8 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { ProfileId } from '../../config/profiles';
+import type { CharacterId } from '../../config/characters';
+import { PROFILES, type ProfileId } from '../../config/profiles';
 import type { RecipeId } from '../../config/recipes';
-import type { StationId } from '../../config/kitchenLayout';
+import type { RoomId, StationId } from '../../config/kitchenLayout';
 import { getSupabaseClient } from './client';
 import type {
   AnimState,
@@ -25,12 +26,15 @@ type LocalChannelMsg =
 
 class KitchenRealtimeSync {
   private channel: RealtimeChannel | null = null;
+  private isSupabaseSubscribed = false;
   private localChannel: BroadcastChannel | null = null;
   private localPresenceTimer: number | null = null;
   private localPartnerLastSeen = 0;
 
   private myProfileId: ProfileId | null = null;
   private myDisplayName = '';
+  private myCharacterId: CharacterId = 'bubu';
+  private myRoom: RoomId = 'kitchen';
   private activeStationId: StationId | null = null;
 
   private seq = 0;
@@ -39,24 +43,31 @@ class KitchenRealtimeSync {
   private lastSentZ = Number.NaN;
   private lastSentRotY = Number.NaN;
   private lastSentAnim: AnimState = 'Idle';
+  private lastSentRoom: RoomId = 'kitchen';
 
-  public connect(profileId: ProfileId, displayName: string): void {
+  public connect(profileId: ProfileId, displayName: string, characterId: CharacterId): void {
     this.disconnect();
     this.myProfileId = profileId;
     this.myDisplayName = displayName;
+    this.myCharacterId = characterId;
+    this.myRoom = useGameStore.getState().currentRoom;
     this.activeStationId = null;
     this.seq = 0;
     this.lastSentX = Number.NaN;
 
     const supabase = getSupabaseClient();
     if (supabase) {
-      this.connectSupabase(profileId, displayName);
+      this.connectSupabase(profileId, displayName, characterId);
     } else {
-      this.connectLocalChannel(profileId, displayName);
+      this.connectLocalChannel(profileId, displayName, characterId);
     }
   }
 
-  private connectSupabase(profileId: ProfileId, displayName: string): void {
+  private connectSupabase(
+    profileId: ProfileId,
+    displayName: string,
+    characterId: CharacterId,
+  ): void {
     const supabase = getSupabaseClient();
     if (!supabase) return;
 
@@ -69,12 +80,13 @@ class KitchenRealtimeSync {
       },
     });
 
-    // 1. Realtime Broadcast: player position/facing/anim (NEVER written to Postgres)
+    // 1. Realtime Broadcast: player position/facing/anim/room (NEVER written to Postgres)
     channel.on('broadcast', { event: 'player_state' }, ({ payload }) => {
       const data = payload as BroadcastPlayerPayload;
       if (!data || data.profileId === this.myProfileId) return;
       playerMotionStore.applyRemotePacket(
         data.profileId,
+        data.room ?? 'kitchen',
         data.x,
         data.z,
         data.rotY,
@@ -83,12 +95,13 @@ class KitchenRealtimeSync {
       );
     });
 
-    // 2. Realtime Presence: online status & active character
+    // 2. Realtime Presence: online status, room & character
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState<PresencePayload>();
       const map: Partial<Record<ProfileId, PresencePayload>> = {};
       let partnerOnline = false;
       let partnerId: ProfileId | null = null;
+      let partnerRoom: RoomId = 'kitchen';
 
       for (const entries of Object.values(state)) {
         const latest = entries[entries.length - 1];
@@ -97,18 +110,18 @@ class KitchenRealtimeSync {
         if (latest.profileId !== this.myProfileId) {
           partnerOnline = true;
           partnerId = latest.profileId;
+          partnerRoom = latest.room ?? 'kitchen';
         }
       }
 
       useSessionStore.getState().setOnlineProfiles(map);
-      playerMotionStore.setRemoteActive(partnerOnline, partnerId);
+      playerMotionStore.setRemoteActive(partnerOnline, partnerId, partnerRoom);
     });
 
     channel.on('presence', { event: 'join' }, ({ newPresences }) => {
       for (const p of newPresences as unknown as PresencePayload[]) {
         if (p.profileId && p.profileId !== this.myProfileId) {
-          useGameStore.getState().pushToast(`${p.displayName} mutfağa katıldı!`, 'success');
-          // Send immediate position snapshot so joining partner sees us instantly
+          useGameStore.getState().pushToast(`${p.displayName} oyuna katıldı!`, 'success');
           this.sendImmediateState();
         }
       }
@@ -117,13 +130,33 @@ class KitchenRealtimeSync {
     channel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
       for (const p of leftPresences as unknown as PresencePayload[]) {
         if (p.profileId && p.profileId !== this.myProfileId) {
-          useGameStore.getState().pushToast(`${p.displayName} mutfaktan ayrıldı.`, 'info');
+          useGameStore.getState().pushToast(`${p.displayName} ayrıldı.`, 'info');
         }
       }
     });
 
-    // 3. Postgres Changes: persistent home state (wallet, stock, stations/locks, recipes)
+    // 3. Postgres Changes: persistent home state + live profile/character updates
     channel
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const row = payload.new as {
+            id?: ProfileId;
+            display_name?: string;
+            avatar_color?: string;
+            character_id?: CharacterId;
+          };
+          if (row?.id === 'p1' || row?.id === 'p2') {
+            useGameStore.getState().patchProfile({
+              id: row.id,
+              displayName: row.display_name ?? PROFILES[row.id].defaultName,
+              avatarColor: row.avatar_color ?? PROFILES[row.id].avatarColor,
+              characterId: row.character_id ?? PROFILES[row.id].defaultCharacter,
+            });
+          }
+        },
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'home_state' },
@@ -199,15 +232,19 @@ class KitchenRealtimeSync {
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
+        this.isSupabaseSubscribed = true;
         useSessionStore.getState().setConnectionStatus('connected');
         await channel.track({
           profileId,
           displayName,
+          characterId,
+          room: this.myRoom,
           onlineAt: new Date().toISOString(),
           activeStationId: this.activeStationId,
         } satisfies PresencePayload);
         this.sendImmediateState();
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        this.isSupabaseSubscribed = false;
         useSessionStore.getState().setConnectionStatus('disconnected');
       }
     });
@@ -215,11 +252,17 @@ class KitchenRealtimeSync {
     this.channel = channel;
   }
 
-  private connectLocalChannel(profileId: ProfileId, displayName: string): void {
+  private connectLocalChannel(
+    profileId: ProfileId,
+    displayName: string,
+    characterId: CharacterId,
+  ): void {
     useSessionStore.getState().setConnectionStatus('connected');
     const myPresence: PresencePayload = {
       profileId,
       displayName,
+      characterId,
+      room: this.myRoom,
       onlineAt: new Date().toISOString(),
       activeStationId: null,
     };
@@ -238,7 +281,15 @@ class KitchenRealtimeSync {
         const d = msg.payload;
         if (d.profileId === this.myProfileId) return;
         this.localPartnerLastSeen = Date.now();
-        playerMotionStore.applyRemotePacket(d.profileId, d.x, d.z, d.rotY, d.anim, d.seq);
+        playerMotionStore.applyRemotePacket(
+          d.profileId,
+          d.room ?? 'kitchen',
+          d.x,
+          d.z,
+          d.rotY,
+          d.anim,
+          d.seq,
+        );
       } else if (msg.type === 'presence_ping') {
         const p = msg.payload;
         if (p.profileId === this.myProfileId) return;
@@ -248,7 +299,7 @@ class KitchenRealtimeSync {
           ...useSessionStore.getState().onlineProfiles,
           [p.profileId]: p,
         });
-        playerMotionStore.setRemoteActive(true, p.profileId);
+        playerMotionStore.setRemoteActive(true, p.profileId, p.room ?? 'kitchen');
         if (!wasOnline) {
           useGameStore.getState().pushToast(`${p.displayName} (2. sekme) katıldı!`, 'success');
           this.sendImmediateState();
@@ -269,12 +320,13 @@ class KitchenRealtimeSync {
       const payload: PresencePayload = {
         profileId: this.myProfileId,
         displayName: this.myDisplayName,
+        characterId: this.myCharacterId,
+        room: this.myRoom,
         onlineAt: new Date().toISOString(),
         activeStationId: this.activeStationId,
       };
       this.localChannel.postMessage({ type: 'presence_ping', payload } satisfies LocalChannelMsg);
 
-      // Expire stale local partner presence after 6 seconds
       if (this.localPartnerLastSeen > 0 && Date.now() - this.localPartnerLastSeen > 6000) {
         const partnerId: ProfileId = this.myProfileId === 'p1' ? 'p2' : 'p1';
         const next = { ...useSessionStore.getState().onlineProfiles };
@@ -289,15 +341,15 @@ class KitchenRealtimeSync {
     this.localPresenceTimer = window.setInterval(emitPresence, 2000);
   }
 
-  public updatePresenceStation(stationId: StationId | null): void {
-    this.activeStationId = stationId;
+  private trackPresence(): void {
     if (!this.myProfileId) return;
-
     const payload: PresencePayload = {
       profileId: this.myProfileId,
       displayName: this.myDisplayName,
+      characterId: this.myCharacterId,
+      room: this.myRoom,
       onlineAt: new Date().toISOString(),
-      activeStationId: stationId,
+      activeStationId: this.activeStationId,
     };
 
     if (this.channel) {
@@ -307,16 +359,28 @@ class KitchenRealtimeSync {
     }
   }
 
+  public updatePresenceRoom(room: RoomId): void {
+    this.myRoom = room;
+    this.trackPresence();
+    this.sendImmediateState();
+  }
+
+  public updatePresenceStation(stationId: StationId | null): void {
+    this.activeStationId = stationId;
+    this.trackPresence();
+  }
+
   public sendImmediateState(): void {
     const loc = playerMotionStore.local;
-    this.maybeBroadcastMotion(loc.x, loc.z, loc.rotY, loc.anim, true);
+    this.maybeBroadcastMotion(loc.room, loc.x, loc.z, loc.rotY, loc.anim, true);
   }
 
   /**
    * Throttled (~15 Hz) Realtime Broadcast publisher.
-   * Only emits when position/rotation/animation changed, plus immediate flush on stop.
+   * Only emits when room/position/rotation/animation changed, plus immediate flush on stop.
    */
   public maybeBroadcastMotion(
+    room: RoomId,
     x: number,
     z: number,
     rotY: number,
@@ -326,7 +390,7 @@ class KitchenRealtimeSync {
     if (!this.myProfileId) return;
 
     const now = performance.now();
-    const animChanged = anim !== this.lastSentAnim;
+    const animChanged = anim !== this.lastSentAnim || room !== this.lastSentRoom;
     const moved =
       Number.isNaN(this.lastSentX) ||
       Math.hypot(x - this.lastSentX, z - this.lastSentZ) > 0.012 ||
@@ -340,10 +404,12 @@ class KitchenRealtimeSync {
     this.lastSentZ = z;
     this.lastSentRotY = rotY;
     this.lastSentAnim = anim;
+    this.lastSentRoom = room;
     this.seq += 1;
 
     const payload: BroadcastPlayerPayload = {
       profileId: this.myProfileId,
+      room,
       x: Math.round(x * 1000) / 1000,
       z: Math.round(z * 1000) / 1000,
       rotY: Math.round(rotY * 1000) / 1000,
@@ -352,7 +418,7 @@ class KitchenRealtimeSync {
       ts: Date.now(),
     };
 
-    if (this.channel) {
+    if (this.channel && this.isSupabaseSubscribed) {
       void this.channel.send({
         type: 'broadcast',
         event: 'player_state',
@@ -397,6 +463,7 @@ class KitchenRealtimeSync {
     }
 
     if (this.channel) {
+      this.isSupabaseSubscribed = false;
       const supabase = getSupabaseClient();
       if (supabase) {
         void supabase.removeChannel(this.channel);

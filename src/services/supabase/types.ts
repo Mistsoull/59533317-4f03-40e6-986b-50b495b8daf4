@@ -1,6 +1,7 @@
+import type { CharacterId } from '../../config/characters';
 import type { ProfileId } from '../../config/profiles';
 import type { RecipeId } from '../../config/recipes';
-import type { StationId } from '../../config/kitchenLayout';
+import type { RoomId, StationId } from '../../config/kitchenLayout';
 
 export type AnimState = 'Idle' | 'Walk' | 'Interact';
 
@@ -8,6 +9,7 @@ export interface ProfileRow {
   id: ProfileId;
   displayName: string;
   avatarColor: string;
+  characterId: CharacterId;
 }
 
 export interface StationStateRow {
@@ -39,6 +41,7 @@ export interface HomeSnapshot {
 
 export interface BroadcastPlayerPayload {
   profileId: ProfileId;
+  room: RoomId;
   x: number;
   z: number;
   rotY: number;
@@ -50,6 +53,8 @@ export interface BroadcastPlayerPayload {
 export interface PresencePayload {
   profileId: ProfileId;
   displayName: string;
+  characterId: CharacterId;
+  room: RoomId;
   onlineAt: string;
   activeStationId: StationId | null;
 }

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { PROFILES, type ProfileId } from '../config/profiles';
 import type { RecipeId } from '../config/recipes';
-import type { StationId } from '../config/kitchenLayout';
+import type { RoomId, StationId } from '../config/kitchenLayout';
+import type { MarketStallId } from '../config/marketLayout';
 import type {
   HomeSnapshot,
   ProfileRow,
@@ -12,7 +13,7 @@ import type {
 export type ActiveOverlay =
   | null
   | 'fridge'
-  | 'market'
+  | 'market_stall'
   | 'recipe_book'
   | 'cutting_board'
   | 'stove';
@@ -33,11 +34,13 @@ function createInitialSnapshot(): HomeSnapshot {
         id: 'p1',
         displayName: PROFILES.p1.defaultName,
         avatarColor: PROFILES.p1.avatarColor,
+        characterId: PROFILES.p1.defaultCharacter,
       },
       p2: {
         id: 'p2',
         displayName: PROFILES.p2.defaultName,
         avatarColor: PROFILES.p2.avatarColor,
+        characterId: PROFILES.p2.defaultCharacter,
       },
     },
     inventory: {
@@ -111,6 +114,8 @@ function createInitialSnapshot(): HomeSnapshot {
 
 interface GameState {
   loaded: boolean;
+  currentRoom: RoomId;
+  activeMarketStall: MarketStallId | 'all';
   coins: number;
   profiles: Record<ProfileId, ProfileRow>;
   inventory: Record<string, number>;
@@ -119,6 +124,8 @@ interface GameState {
   activeOverlay: ActiveOverlay;
   heldLockStation: StationId | null;
   toasts: ToastItem[];
+  setCurrentRoom: (room: RoomId) => void;
+  openMarketStall: (stall: MarketStallId | 'all') => void;
   applySnapshot: (snapshot: HomeSnapshot) => void;
   setCoins: (coins: number) => void;
   patchProfile: (profile: ProfileRow) => void;
@@ -135,10 +142,20 @@ const initial = createInitialSnapshot();
 
 export const useGameStore = create<GameState>((set) => ({
   loaded: false,
+  currentRoom: 'kitchen',
+  activeMarketStall: 'all',
   ...initial,
   activeOverlay: null,
   heldLockStation: null,
   toasts: [],
+
+  setCurrentRoom: (currentRoom) => set({ currentRoom }),
+
+  openMarketStall: (stall) =>
+    set({
+      activeMarketStall: stall,
+      activeOverlay: 'market_stall',
+    }),
 
   applySnapshot: (snapshot) =>
     set({

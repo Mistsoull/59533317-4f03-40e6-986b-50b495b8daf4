@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Gift } from 'lucide-react';
-import { MARKET_ITEMS } from '../../config/ingredients';
+import { INGREDIENTS, MARKET_ITEMS } from '../../config/ingredients';
+import { MARKET_STALLS, MARKET_STALL_LIST, type MarketStallId } from '../../config/marketLayout';
 import { RECIPE_LIST } from '../../config/recipes';
 import { kitchenAudio } from '../../domain/audio';
 import { needsPantrySupport } from '../../domain/stationRules';
@@ -11,10 +12,20 @@ import { ModalDialog } from '../common/ModalDialog';
 export function MarketModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const coins = useGameStore((s) => s.coins);
   const inventory = useGameStore((s) => s.inventory);
+  const activeStall = useGameStore((s) => s.activeMarketStall);
+  const openMarketStall = useGameStore((s) => s.openMarketStall);
   const pushToast = useGameStore((s) => s.pushToast);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const canClaimSupport = needsPantrySupport(coins, inventory, RECIPE_LIST);
+
+  const currentStallDef = activeStall === 'all' ? null : MARKET_STALLS[activeStall];
+  const visibleItems =
+    currentStallDef !== null
+      ? currentStallDef.itemIds
+          .map((id) => INGREDIENTS[id])
+          .filter((x): x is NonNullable<typeof x> => Boolean(x))
+      : MARKET_ITEMS;
 
   const handleBuy = async (itemId: string, name: string, price: number) => {
     if (busyId) return;
@@ -31,7 +42,7 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
 
     if (res.ok) {
       kitchenAudio.playCoin();
-      pushToast(`${name} alındı ve buzdolabına eklendi!`, 'success');
+      pushToast(`${name} alındı ve evdeki buzdolabına gönderildi!`, 'success');
     } else {
       kitchenAudio.playError();
       pushToast('Satın alma tamamlanamadı.', 'warn');
@@ -48,54 +59,81 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
     }
   };
 
+  const tabs: Array<{ id: MarketStallId | 'all'; label: string }> = [
+    { id: 'all', label: '🛒 Tümü' },
+    ...MARKET_STALL_LIST.map((st) => ({ id: st.id, label: `${st.icon} ${st.label}` })),
+  ];
+
   return (
     <ModalDialog
       open={open}
       onClose={onClose}
-      icon="🛒"
-      title="Mahalle Marketi"
-      subtitle="Alınan malzemeler anında ortak buzdolabına gider."
+      icon={currentStallDef?.icon ?? '🛒'}
+      title={currentStallDef?.label ?? 'Mahalle Marketi'}
+      subtitle={currentStallDef?.subtitle ?? 'Alınan malzemeler anında ortak buzdolabına gider.'}
       headerRight={
-        <div className="rounded-xl border border-amber-300/30 bg-amber-500/15 px-3 py-1.5 text-sm font-extrabold text-amber-200">
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/15 px-3 py-1.5 text-sm font-extrabold text-amber-700 dark:text-amber-200">
           🪙 {coins}
         </div>
       }
     >
+      {/* Stall aisle tabs */}
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {tabs.map((tab) => {
+          const active = activeStall === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                kitchenAudio.playTap();
+                openMarketStall(tab.id);
+              }}
+              className={`rounded-xl px-3 py-1.5 text-xs font-extrabold transition active:scale-95 ${
+                active
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'ui-subtle hover:brightness-95'
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       {canClaimSupport && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/35 bg-emerald-950/40 px-4 py-2.5">
-          <div className="flex items-center gap-2 text-xs text-emerald-100">
-            <Gift className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/35 bg-emerald-500/12 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <Gift className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
             <span>Kasa ve dolap neredeyse boş! Ücretsiz destek paketi alabilirsin.</span>
           </div>
           <button
             type="button"
             disabled={busyId !== null}
             onClick={handleClaimSupport}
-            className="shrink-0 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-stone-950 transition active:scale-95"
+            className="shrink-0 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-extrabold text-white transition active:scale-95"
           >
             +50 Coin Al
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-2.5">
-        {MARKET_ITEMS.map((item) => {
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {visibleItems.map((item) => {
           const stock = inventory[item.id] ?? 0;
           const affordable = coins >= item.price;
           return (
             <div
               key={item.id}
-              className="flex flex-col justify-between gap-2 rounded-2xl border border-white/10 bg-stone-900/75 p-3"
+              className="ui-surface flex flex-col justify-between gap-2 rounded-2xl p-3"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl leading-none" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold text-amber-50">{item.name}</p>
-                    <p className="text-[11px] text-stone-400">Dolapta: ×{stock}</p>
-                  </div>
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl leading-none" aria-hidden="true">
+                  {item.icon}
+                </span>
+                <div>
+                  <p className="text-xs font-extrabold">{item.name}</p>
+                  <p className="text-[11px] ui-muted">Dolapta: ×{stock}</p>
                 </div>
               </div>
 
@@ -103,7 +141,7 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
                 type="button"
                 disabled={!affordable || busyId === item.id}
                 onClick={() => handleBuy(item.id, item.name, item.price)}
-                className="w-full rounded-xl bg-amber-500 px-3 py-2 text-xs font-extrabold text-stone-950 transition active:scale-95 disabled:bg-stone-800 disabled:text-stone-500"
+                className="w-full rounded-xl bg-[#e07a5f] px-3 py-2 text-xs font-extrabold text-white shadow-xs transition active:scale-95 disabled:opacity-40"
               >
                 {busyId === item.id ? 'Alınıyor...' : `+1 Al · 🪙 ${item.price}`}
               </button>

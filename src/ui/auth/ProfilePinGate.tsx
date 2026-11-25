@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { Cloud, HardDrive, Lock, Settings2 } from 'lucide-react';
+import { Cloud, HardDrive, Lock, Moon, Settings2, Sun, User } from 'lucide-react';
+import { CHARACTER_LIST, type CharacterId } from '../../config/characters';
 import {
   DEFAULT_LOCAL_PIN,
+  PROFILES,
   PROFILE_LIST,
   type ProfileId,
 } from '../../config/profiles';
@@ -12,23 +14,59 @@ import {
   isSupabaseConfigured,
   saveSupabaseRuntimeConfig,
 } from '../../services/supabase/client';
+import { updateMyProfile } from '../../services/supabase/homeRepository';
 import type { BackendMode } from '../../store/useSessionStore';
+import { useThemeStore } from '../../store/useThemeStore';
 
 interface ProfilePinGateProps {
   onSignedIn: (profileId: ProfileId, mode: BackendMode) => void;
 }
 
+const LAST_NAME_PREFIX = 'cozy_kitchen_custom_name_';
+const LAST_CHAR_PREFIX = 'cozy_kitchen_custom_char_';
+
+function readSavedName(pid: ProfileId): string {
+  try {
+    return localStorage.getItem(LAST_NAME_PREFIX + pid) || PROFILES[pid].defaultName;
+  } catch {
+    return PROFILES[pid].defaultName;
+  }
+}
+
+function readSavedChar(pid: ProfileId): CharacterId {
+  try {
+    const c = localStorage.getItem(LAST_CHAR_PREFIX + pid);
+    if (c === 'cat' || c === 'dog' || c === 'bubu' || c === 'dudu') return c;
+  } catch {
+    // ignore
+  }
+  return PROFILES[pid].defaultCharacter;
+}
+
 export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
   const [selectedProfile, setSelectedProfile] = useState<ProfileId>('p1');
+  const [customName, setCustomName] = useState<string>(() => readSavedName('p1'));
+  const [selectedChar, setSelectedChar] = useState<CharacterId>(() => readSavedChar('p1'));
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
 
   const [showSetup, setShowSetup] = useState(false);
   const existingCfg = getSupabaseConfig();
   const [supaUrl, setSupaUrl] = useState(existingCfg?.url ?? '');
   const [supaAnon, setSupaAnon] = useState(existingCfg?.anonKey ?? '');
   const [supabaseReady, setSupabaseReady] = useState(isSupabaseConfigured);
+
+  const handleSelectSlot = (pid: ProfileId) => {
+    kitchenAudio.unlockSync();
+    kitchenAudio.playTap();
+    setSelectedProfile(pid);
+    setCustomName(readSavedName(pid));
+    setSelectedChar(readSavedChar(pid));
+  };
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -37,14 +75,23 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
     setSubmitting(true);
 
     const res = await signInWithProfilePin(selectedProfile, pin);
-    setSubmitting(false);
-
     if (!res.ok || !res.profileId) {
+      setSubmitting(false);
       kitchenAudio.playError();
       setError(res.error ?? 'Giriş yapılamadı.');
       return;
     }
 
+    const finalName = customName.trim().slice(0, 20) || PROFILES[res.profileId].defaultName;
+    try {
+      localStorage.setItem(LAST_NAME_PREFIX + res.profileId, finalName);
+      localStorage.setItem(LAST_CHAR_PREFIX + res.profileId, selectedChar);
+    } catch {
+      // ignore
+    }
+
+    await updateMyProfile(res.profileId, finalName, selectedChar);
+    setSubmitting(false);
     kitchenAudio.playSuccess();
     onSignedIn(res.profileId, res.backendMode);
   };
@@ -77,129 +124,218 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
   };
 
   return (
-    <main className="game-shell flex h-dvh w-dvw items-center justify-center bg-gradient-to-br from-[#1e1b18] via-[#27211c] to-[#1a1613] safe-x safe-top safe-bottom">
-      <div className="grid w-full max-w-3xl grid-cols-12 gap-4 rounded-3xl border border-white/10 bg-stone-900/80 p-5 shadow-2xl backdrop-blur-md">
-        {/* Left column: Title + Fixed 2 Profiles */}
-        <section className="col-span-6 flex flex-col justify-between gap-3">
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
+    <main
+      className="game-shell flex h-dvh w-dvw items-center justify-center safe-x safe-top safe-bottom"
+      style={{
+        background:
+          theme === 'light'
+            ? 'radial-gradient(circle at top left, #fff8ec 0%, #f4e6d2 55%, #e7f3ea 100%)'
+            : 'radial-gradient(circle at top left, #28221d 0%, #1e1b18 100%)',
+      }}
+    >
+      <div className="ui-card grid w-full max-w-4xl grid-cols-12 gap-4 rounded-3xl p-4 shadow-2xl backdrop-blur-md">
+        {/* Left column: Profile Slot + Custom Name + 4 Character Picker */}
+        <section className="col-span-7 flex flex-col justify-between gap-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-extrabold tracking-tight sm:text-xl">
+                🍳 Bizim Mutfak
+              </h1>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                  supabaseReady
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-amber-500/15 text-amber-800 dark:text-amber-200'
+                }`}
+              >
                 {supabaseReady ? (
                   <>
-                    <Cloud className="h-3.5 w-3.5" aria-hidden="true" /> Supabase Bulut Aktif
+                    <Cloud className="h-3 w-3" aria-hidden="true" /> Bulut Aktif
                   </>
                 ) : (
                   <>
-                    <HardDrive className="h-3.5 w-3.5" aria-hidden="true" /> Yerel Ev Modu (PIN: {DEFAULT_LOCAL_PIN})
+                    <HardDrive className="h-3 w-3" aria-hidden="true" /> Yerel ({DEFAULT_LOCAL_PIN})
                   </>
                 )}
               </span>
+            </div>
 
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  kitchenAudio.unlockSync();
+                  kitchenAudio.playTap();
+                  toggleTheme();
+                }}
+                aria-label={theme === 'light' ? 'Koyu Temaya Geç' : 'Açık Temaya Geç'}
+                className="ui-subtle inline-flex h-11 w-11 items-center justify-center rounded-xl transition active:scale-95"
+              >
+                {theme === 'light' ? (
+                  <Moon className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Sun className="h-4 w-4 text-amber-300" aria-hidden="true" />
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => setShowSetup((v) => !v)}
                 aria-label="Supabase Bağlantı Ayarları"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-stone-800/70 text-stone-300 hover:bg-stone-700"
+                className="ui-subtle inline-flex h-11 w-11 items-center justify-center rounded-xl transition active:scale-95"
               >
                 <Settings2 className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-
-            <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-amber-50">
-              🍳 Bizim Mutfak
-            </h1>
-            <p className="mt-1 text-xs text-stone-300">
-              Profilini seç ve ortak ev PIN&apos;ini gir. İster tek başına ister birlikte pişir!
-            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Profil Seçimi">
-            {PROFILE_LIST.map((prof) => {
-              const active = selectedProfile === prof.id;
-              return (
-                <button
-                  key={prof.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  onClick={() => {
-                    kitchenAudio.unlockSync();
-                    kitchenAudio.playTap();
-                    setSelectedProfile(prof.id);
-                  }}
-                  className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-3.5 transition active:scale-95 ${
-                    active
-                      ? 'border-amber-300 bg-stone-800 shadow-lg'
-                      : 'border-white/10 bg-stone-900/60 opacity-75 hover:opacity-100'
-                  }`}
-                >
-                  <span
-                    className="flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold text-white shadow-inner"
-                    style={{ backgroundColor: prof.avatarColor }}
-                    aria-hidden="true"
+          {/* Slot + Custom Name row */}
+          <div className="grid grid-cols-12 gap-2">
+            <div
+              className="col-span-5 grid grid-cols-2 gap-1.5"
+              role="radiogroup"
+              aria-label="Profil Slotu"
+            >
+              {PROFILE_LIST.map((prof, idx) => {
+                const active = selectedProfile === prof.id;
+                return (
+                  <button
+                    key={prof.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => handleSelectSlot(prof.id)}
+                    className={`rounded-xl border-2 px-2 py-2 text-xs font-extrabold transition active:scale-95 ${
+                      active
+                        ? 'border-[#e07a5f] bg-[#e07a5f]/15 text-[#c85a3f]'
+                        : 'ui-surface opacity-75 hover:opacity-100'
+                    }`}
                   >
-                    👨‍🍳
-                  </span>
-                  <span className="text-sm font-bold text-amber-50">{prof.defaultName}</span>
-                  <span className="text-[11px] text-stone-400">
-                    {prof.id === 'p1' ? 'Profil 1' : 'Profil 2'}
-                  </span>
-                </button>
-              );
-            })}
+                    Oyuncu {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+
+            <label className="col-span-7 relative flex items-center">
+              <User
+                className="pointer-events-none absolute left-3 h-4 w-4 ui-muted"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                maxLength={20}
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="İsmini yaz (örn: Uğur)..."
+                aria-label="Oyuncu İsmi"
+                className="ui-surface w-full rounded-xl py-2 pl-9 pr-3 text-xs font-bold focus:outline-2 focus:outline-[#e07a5f]"
+              />
+            </label>
+          </div>
+
+          {/* 4 Character Picker: Bubu, Dudu, Kedi, Köpek */}
+          <div>
+            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider ui-muted">
+              Karakterini Seç
+            </p>
+            <div
+              className="grid grid-cols-4 gap-2"
+              role="radiogroup"
+              aria-label="Karakter Seçimi"
+            >
+              {CHARACTER_LIST.map((ch) => {
+                const active = selectedChar === ch.id;
+                return (
+                  <button
+                    key={ch.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => {
+                      kitchenAudio.unlockSync();
+                      kitchenAudio.playTap();
+                      setSelectedChar(ch.id);
+                    }}
+                    className={`flex flex-col items-center gap-1 rounded-2xl border-2 p-2 transition active:scale-95 ${
+                      active
+                        ? 'scale-[1.02] shadow-md'
+                        : 'ui-surface opacity-80 hover:opacity-100'
+                    }`}
+                    style={
+                      active
+                        ? {
+                            borderColor: ch.accentColor,
+                            backgroundColor:
+                              theme === 'light' ? ch.badgeBg : `${ch.accentColor}26`,
+                          }
+                        : undefined
+                    }
+                  >
+                    <span className="text-2xl leading-none" aria-hidden="true">
+                      {ch.emoji}
+                    </span>
+                    <span className="text-xs font-extrabold">{ch.name}</span>
+                    <span className="text-[10px] ui-muted leading-tight">{ch.tagline}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
 
-        {/* Right column: PIN Pad or Supabase Setup */}
-        <section className="col-span-6 flex flex-col justify-center rounded-2xl border border-white/10 bg-stone-950/60 p-4">
+        {/* Right column: Shared PIN Keypad or Supabase Settings */}
+        <section className="ui-surface col-span-5 flex flex-col justify-center rounded-2xl p-3.5">
           {showSetup ? (
-            <form onSubmit={handleSaveSupabase} className="space-y-3">
-              <h2 className="text-sm font-bold text-amber-100">Supabase Bulut Bağlantısı</h2>
-              <p className="text-[11px] text-stone-400">
-                2 farklı cihaz arasında gerçek zamanlı oynamak için Supabase URL ve public Anon Key girin (boş bırakırsanız yerel mod kullanılır).
+            <form onSubmit={handleSaveSupabase} className="space-y-2.5">
+              <h2 className="text-sm font-extrabold">Supabase Bağlantısı</h2>
+              <p className="text-[11px] ui-muted">
+                Project URL ve public Anon Key ayarını buradan değiştirebilirsiniz.
               </p>
-              <label className="block text-xs text-stone-300">
+              <label className="block text-xs font-semibold">
                 Project URL
                 <input
                   type="url"
                   value={supaUrl}
                   onChange={(e) => setSupaUrl(e.target.value)}
                   placeholder="https://xxxx.supabase.co"
-                  className="mt-1 w-full rounded-xl border border-white/15 bg-stone-900 px-3 py-2 text-xs text-white"
+                  className="ui-subtle mt-1 w-full rounded-xl px-3 py-1.5 text-xs"
                 />
               </label>
-              <label className="block text-xs text-stone-300">
+              <label className="block text-xs font-semibold">
                 Anon Public Key
                 <input
                   type="password"
                   value={supaAnon}
                   onChange={(e) => setSupaAnon(e.target.value)}
                   placeholder="eyJhbGciOi..."
-                  className="mt-1 w-full rounded-xl border border-white/15 bg-stone-900 px-3 py-2 text-xs text-white"
+                  className="ui-subtle mt-1 w-full rounded-xl px-3 py-1.5 text-xs"
                 />
               </label>
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-stone-950"
+                  className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white"
                 >
                   Kaydet
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowSetup(false)}
-                  className="rounded-xl border border-white/15 px-3 py-2 text-xs text-stone-300"
+                  className="ui-subtle rounded-xl px-3 py-2 text-xs font-semibold"
                 >
                   Vazgeç
                 </button>
               </div>
             </form>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label htmlFor="pin-input" className="flex items-center gap-1.5 text-xs font-semibold text-stone-300">
-                  <Lock className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
-                  Ortak Ev PIN&apos;i
+            <form onSubmit={handleSubmit} className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="pin-input"
+                  className="flex items-center gap-1.5 text-xs font-bold ui-muted"
+                >
+                  <Lock className="h-3.5 w-3.5 text-[#e07a5f]" aria-hidden="true" />
+                  Ortak PIN
                 </label>
                 <input
                   id="pin-input"
@@ -211,23 +347,22 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                     setError(null);
                     setPin(e.target.value.replace(/\D/g, '').slice(0, 6));
                   }}
-                  placeholder="••••"
+                  placeholder="1234"
                   aria-invalid={Boolean(error)}
-                  className="w-28 rounded-xl border border-white/15 bg-stone-900 px-3 py-1.5 text-center text-base font-bold tracking-[0.35em] text-amber-100"
+                  className="ui-subtle w-28 rounded-xl px-3 py-1 text-center text-base font-extrabold tracking-[0.35em]"
                 />
               </div>
 
-              {/* Compact 4x3 landscape numeric touch pad */}
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-1.5">
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'DEL'].map((key) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => handlePadPress(key)}
-                    className={`rounded-xl border border-white/10 py-2 text-sm font-bold transition active:scale-95 ${
+                    className={`rounded-xl py-2 text-sm font-extrabold transition active:scale-95 ${
                       key === 'DEL'
-                        ? 'bg-stone-800 text-rose-300'
-                        : 'bg-stone-800/80 text-stone-100 hover:bg-stone-700'
+                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300'
+                        : 'ui-subtle hover:brightness-95'
                     }`}
                   >
                     {key === 'DEL' ? '⌫' : key}
@@ -236,14 +371,17 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                 <button
                   type="submit"
                   disabled={submitting || pin.length < 4}
-                  className="rounded-xl bg-amber-500 py-2 text-sm font-extrabold text-stone-950 shadow-md transition active:scale-95 disabled:opacity-45"
+                  className="rounded-xl bg-[#e07a5f] py-2 text-sm font-extrabold text-white shadow-md transition active:scale-95 disabled:opacity-45"
                 >
                   {submitting ? '...' : 'GİR'}
                 </button>
               </div>
 
               {error && (
-                <p role="alert" className="rounded-lg bg-rose-950/70 px-2.5 py-1.5 text-xs text-rose-200">
+                <p
+                  role="alert"
+                  className="rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 dark:text-rose-200"
+                >
                   {error}
                 </p>
               )}

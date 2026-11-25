@@ -39,8 +39,9 @@ jobs:
       - name: Build for GitHub Pages
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Public client URL & anon key only (protected by Supabase Auth + RLS + shared PIN)
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://vywnivkoclneaojetlpt.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5d25pdmtvY2xuZWFvamV0bHB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MTk1MTEsImV4cCI6MjExMTE5NTUxMX0.8xEH8zCnOJ1comXIxYIbvagOd52LS70ej6yjBMZZv4o' }}
         run: npm run build
 
       - name: Upload Pages artifact

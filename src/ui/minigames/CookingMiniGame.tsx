@@ -13,7 +13,7 @@ interface CookingMiniGameProps {
   open: boolean;
   profileId: ProfileId;
   onClose: () => void;
-  onOpenMarket: () => void;
+  onGoToMarket: () => void;
 }
 
 const HEAT_LOW = 38;
@@ -23,7 +23,7 @@ export function CookingMiniGame({
   open,
   profileId,
   onClose,
-  onOpenMarket,
+  onGoToMarket,
 }: CookingMiniGameProps) {
   const inventory = useGameStore((s) => s.inventory);
   const pushToast = useGameStore((s) => s.pushToast);
@@ -93,7 +93,6 @@ export function CookingMiniGame({
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
 
-      // Update heat: holding flame button heats up, releasing cools down
       const deltaHeat = heatingRef.current ? 46 * dt : -30 * dt;
       const nextHeat = Math.max(5, Math.min(98, heatRef.current + deltaHeat));
       heatRef.current = nextHeat;
@@ -111,7 +110,6 @@ export function CookingMiniGame({
         }
       }
 
-      // Trigger 2 fun stir/flip cues at 35% and 70%
       if (cueStageRef.current === 0 && progressRef.current >= 32) {
         cueStageRef.current = 1;
         setCueVisible(true);
@@ -165,18 +163,18 @@ export function CookingMiniGame({
               return (
                 <div
                   key={recipe.id}
-                  className="flex flex-col justify-between gap-2.5 rounded-2xl border border-white/10 bg-stone-900/80 p-3"
+                  className="ui-surface flex flex-col justify-between gap-2.5 rounded-2xl p-3"
                 >
                   <div>
                     <div className="flex items-center justify-between">
                       <span className="text-2xl" aria-hidden="true">
                         {recipe.icon}
                       </span>
-                      <span className="rounded-lg bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-200">
+                      <span className="rounded-lg bg-amber-500/15 px-2 py-0.5 text-[11px] font-extrabold text-amber-700 dark:text-amber-200">
                         +🪙 {recipe.rewardCoins}
                       </span>
                     </div>
-                    <h2 className="mt-1.5 text-sm font-bold text-amber-50">{recipe.name}</h2>
+                    <h2 className="mt-1.5 text-sm font-extrabold">{recipe.name}</h2>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {recipe.requirements.map((req) => {
                         const ing = INGREDIENTS[req.itemId];
@@ -185,10 +183,10 @@ export function CookingMiniGame({
                         return (
                           <span
                             key={req.itemId}
-                            className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                            className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
                               ok
-                                ? 'bg-emerald-500/20 text-emerald-200'
-                                : 'bg-rose-500/20 text-rose-200'
+                                ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-200'
+                                : 'bg-rose-500/15 text-rose-700 dark:text-rose-200'
                             }`}
                           >
                             {ing?.icon} {have}/{req.qty}
@@ -213,7 +211,7 @@ export function CookingMiniGame({
                       setCueVisible(false);
                       setSelectedRecipe(recipe);
                     }}
-                    className="w-full rounded-xl bg-amber-500 py-2 text-xs font-extrabold text-stone-950 transition active:scale-95 disabled:bg-stone-800 disabled:text-stone-500"
+                    className="w-full rounded-xl bg-[#e07a5f] py-2 text-xs font-extrabold text-white transition active:scale-95 disabled:opacity-40"
                   >
                     {ready ? '🔥 Pişirmeye Başla' : 'Malzeme Hazırla'}
                   </button>
@@ -222,60 +220,67 @@ export function CookingMiniGame({
             })}
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-stone-900/50 px-3 py-2 text-xs text-stone-300">
-            <span>Eksik malzemen varsa Marketten al, ham sebze/çileği Kesme Tahtasında doğra.</span>
+          <div className="ui-surface flex items-center justify-between rounded-xl px-3 py-2 text-xs">
+            <span className="ui-muted">
+              Eksik malzemen varsa 3D Marketten al, ham sebzeleri Kesme Tahtasında doğra.
+            </span>
             <button
               type="button"
-              onClick={onOpenMarket}
-              className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-stone-800 px-2.5 py-1.5 text-xs font-semibold text-amber-200"
+              onClick={onGoToMarket}
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-extrabold text-white"
             >
-              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" /> Market
+              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" /> Markete Git
             </button>
           </div>
         </div>
       ) : (
         <div className="space-y-4 py-1">
-          {/* Dish Cooking Progress */}
           <div className="space-y-1">
-            <div className="flex justify-between text-xs font-bold">
-              <span className="text-amber-100">
+            <div className="flex justify-between text-xs font-extrabold">
+              <span>
                 {selectedRecipe.icon} {selectedRecipe.name} Pişme İlerlemesi
               </span>
-              <span className="text-emerald-300">{Math.round(progress)}%</span>
+              <span className="text-emerald-600 dark:text-emerald-300">
+                {Math.round(progress)}%
+              </span>
             </div>
-            <div className="h-4 w-full overflow-hidden rounded-full bg-stone-800">
+            <div className="ui-subtle h-4 w-full overflow-hidden rounded-full">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-[width] duration-75"
+                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-[width] duration-75"
                 style={{ width: `${progress}%` }}
               />
             </div>
           </div>
 
-          {/* Heat Gauge */}
           <div className="space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="text-stone-400">Ocak Isısı</span>
-              <span className={inZone ? 'font-bold text-amber-300' : 'text-stone-400'}>
-                {inZone ? '✨ Altın Pişirme Bölgesi!' : heat < HEAT_LOW ? 'Isı Düşük' : 'Çok Sıcak!'}
+              <span className="ui-muted font-semibold">Ocak Isısı</span>
+              <span
+                className={
+                  inZone ? 'font-extrabold text-amber-600 dark:text-amber-300' : 'ui-muted'
+                }
+              >
+                {inZone
+                  ? '✨ Altın Pişirme Bölgesi!'
+                  : heat < HEAT_LOW
+                    ? 'Isı Düşük'
+                    : 'Çok Sıcak!'}
               </span>
             </div>
-            <div className="relative h-12 w-full overflow-hidden rounded-2xl border border-white/15 bg-stone-900">
-              {/* Golden heat zone */}
+            <div className="ui-subtle relative h-12 w-full overflow-hidden rounded-2xl border border-amber-500/30">
               <div
-                className="absolute inset-y-0 border-x-2 border-amber-300 bg-amber-400/25"
+                className="absolute inset-y-0 border-x-2 border-amber-500 bg-amber-400/30"
                 style={{ left: `${HEAT_LOW}%`, width: `${HEAT_HIGH - HEAT_LOW}%` }}
               />
-              {/* Current heat marker */}
               <div
                 className={`absolute inset-y-1 w-3 -translate-x-1/2 rounded-full transition-colors ${
-                  inZone ? 'bg-amber-300 shadow-[0_0_14px_#f59e0b]' : 'bg-rose-400'
+                  inZone ? 'bg-amber-500 shadow-[0_0_14px_#f59e0b]' : 'bg-rose-500'
                 }`}
                 style={{ left: `${heat}%` }}
               />
             </div>
           </div>
 
-          {/* Touch controls row */}
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
@@ -294,7 +299,7 @@ export function CookingMiniGame({
               onPointerCancel={() => {
                 heatingRef.current = false;
               }}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 py-4 text-sm font-extrabold text-stone-950 shadow-lg select-none active:scale-97"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 py-4 text-sm font-extrabold text-white shadow-lg select-none active:scale-97"
             >
               <Flame className="h-5 w-5" aria-hidden="true" />
               ATEŞİ AÇ (Basılı Tut)
@@ -309,8 +314,8 @@ export function CookingMiniGame({
               }}
               className={`rounded-2xl py-4 text-sm font-extrabold shadow-lg transition active:scale-95 ${
                 cueVisible
-                  ? 'animate-pulse bg-emerald-400 text-stone-950 ring-2 ring-emerald-200'
-                  : 'border border-white/10 bg-stone-800/70 text-stone-500'
+                  ? 'animate-pulse bg-emerald-600 text-white ring-2 ring-emerald-300'
+                  : 'ui-subtle ui-muted'
               }`}
             >
               {cueVisible

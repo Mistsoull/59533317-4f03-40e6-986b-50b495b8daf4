@@ -1,3 +1,4 @@
+import type { CharacterId } from '../../config/characters';
 import { PROFILES, type ProfileId } from '../../config/profiles';
 import type { RecipeId, RecipeRequirement } from '../../config/recipes';
 import type { StationId } from '../../config/kitchenLayout';
@@ -11,6 +12,7 @@ import {
   localConfirmRecipeIrl,
   localHeartbeatLock,
   localReleaseLock,
+  localUpdateProfile,
   readLocalHome,
 } from '../local/localHomeStore';
 import { broadcastLocalSnapshot } from './realtimeSync';
@@ -21,6 +23,11 @@ import type {
   StationStateRow,
 } from './types';
 import { useGameStore } from '../../store/useGameStore';
+
+function sanitizeDisplayName(raw: string | null | undefined, fallback: string): string {
+  if (!raw) return fallback;
+  return raw.replaceAll('Åž', 'Ş').replaceAll('ÄŸ', 'ğ').replaceAll('Ã¼', 'ü').replaceAll('Ã¶', 'ö').replaceAll('Ã§', 'ç').replaceAll('Ä±', 'ı');
+}
 
 export async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
   const supabase = getSupabaseClient();
@@ -46,8 +53,9 @@ export async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
     if (id === 'p1' || id === 'p2') {
       profiles[id] = {
         id,
-        displayName: row.display_name ?? PROFILES[id].defaultName,
+        displayName: sanitizeDisplayName(row.display_name, PROFILES[id].defaultName),
         avatarColor: row.avatar_color ?? PROFILES[id].avatarColor,
+        characterId: (row.character_id as CharacterId) ?? PROFILES[id].defaultCharacter,
       };
     }
   }
@@ -94,6 +102,53 @@ export async function fetchHomeSnapshot(): Promise<HomeSnapshot> {
 
   useGameStore.getState().applySnapshot(snapshot);
   return snapshot;
+}
+
+export async function updateMyProfile(
+  profileId: ProfileId,
+  displayName: string,
+  characterId: CharacterId,
+): Promise<ProfileRow> {
+  const cleanName = displayName.trim().slice(0, 20) || PROFILES[profileId].defaultName;
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    const snap = localUpdateProfile(profileId, cleanName, characterId);
+    useGameStore.getState().applySnapshot(snap);
+    broadcastLocalSnapshot(snap);
+    return snap.profiles[profileId];
+  }
+
+  const { data, error } = await supabase.rpc('update_my_profile', {
+    p_display_name: cleanName,
+    p_character_id: characterId,
+  });
+
+  if (!error && Array.isArray(data) && data.length > 0) {
+    const row = data[0] as {
+      id: ProfileId;
+      display_name: string;
+      avatar_color: string;
+      character_id: CharacterId;
+    };
+    const updated: ProfileRow = {
+      id: row.id,
+      displayName: row.display_name,
+      avatarColor: row.avatar_color,
+      characterId: row.character_id,
+    };
+    useGameStore.getState().patchProfile(updated);
+    return updated;
+  }
+
+  const fallbackRow: ProfileRow = {
+    id: profileId,
+    displayName: cleanName,
+    avatarColor: PROFILES[profileId].avatarColor,
+    characterId,
+  };
+  useGameStore.getState().patchProfile(fallbackRow);
+  return fallbackRow;
 }
 
 export async function acquireStationLock(
@@ -288,8 +343,6 @@ export async function completeCook(
 
   const row = data[0] as {
     ok: boolean;
-    new_coins: number;
-    cook_count: number;
     error_code: string | null;
   };
   if (row.ok) {

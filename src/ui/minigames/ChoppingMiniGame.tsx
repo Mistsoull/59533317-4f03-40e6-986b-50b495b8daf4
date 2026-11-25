@@ -12,7 +12,7 @@ interface ChoppingMiniGameProps {
   open: boolean;
   profileId: ProfileId;
   onClose: () => void;
-  onOpenMarket: () => void;
+  onGoToMarket: () => void;
 }
 
 const TARGET_SLICES = 5;
@@ -23,7 +23,7 @@ export function ChoppingMiniGame({
   open,
   profileId,
   onClose,
-  onOpenMarket,
+  onGoToMarket,
 }: ChoppingMiniGameProps) {
   const inventory = useGameStore((s) => s.inventory);
   const pushToast = useGameStore((s) => s.pushToast);
@@ -42,7 +42,6 @@ export function ChoppingMiniGame({
 
   const preppable = getPreppableRawItems(inventory);
 
-  // Reset state whenever modal opens/closes
   useEffect(() => {
     if (!open) {
       setActivePair(null);
@@ -52,7 +51,6 @@ export function ChoppingMiniGame({
     }
   }, [open]);
 
-  // Smooth RAF knife cursor oscillation during active mini-game
   useEffect(() => {
     if (!open || !activePair || saving) return;
 
@@ -110,7 +108,7 @@ export function ChoppingMiniGame({
       }
     } else {
       kitchenAudio.playChop(false);
-      setFeedback('Altın bölgede dokun!');
+      setFeedback('Yeşil bölgede dokun!');
     }
   };
 
@@ -142,20 +140,20 @@ export function ChoppingMiniGame({
                   setFeedback('');
                   setActivePair({ raw, target });
                 }}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-stone-900/80 p-3.5 text-left transition active:scale-98 hover:border-amber-300/40 disabled:opacity-45"
+                className="ui-surface flex items-center justify-between gap-3 rounded-2xl p-3.5 text-left transition active:scale-98 disabled:opacity-45"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-3xl" aria-hidden="true">
                     {raw.icon}
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-amber-50">{raw.name}</p>
-                    <p className="text-[11px] text-stone-400">
+                    <p className="text-sm font-extrabold">{raw.name}</p>
+                    <p className="text-[11px] ui-muted">
                       Ham: ×{rawQty} · Hazır: ×{preppedQty}
                     </p>
                   </div>
                 </div>
-                <span className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-extrabold text-stone-950">
+                <span className="rounded-xl bg-[#e07a5f] px-3 py-1.5 text-xs font-extrabold text-white">
                   Doğra
                 </span>
               </button>
@@ -163,51 +161,48 @@ export function ChoppingMiniGame({
           </div>
 
           {preppable.every((p) => p.rawQty === 0) && (
-            <div className="flex items-center justify-between rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3">
-              <p className="text-xs text-amber-100">Doğranacak ham malzeme kalmadı.</p>
+            <div className="flex items-center justify-between rounded-2xl border border-amber-500/30 bg-amber-500/12 p-3">
+              <p className="text-xs font-semibold">Doğranacak ham malzeme kalmadı.</p>
               <button
                 type="button"
-                onClick={onOpenMarket}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-stone-950"
+                onClick={onGoToMarket}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white"
               >
-                <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" /> Marketi Aç
+                <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" /> Markete Git
               </button>
             </div>
           )}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4 py-2">
-          {/* Progress dots */}
           <div className="flex items-center gap-2">
             {Array.from({ length: TARGET_SLICES }).map((_, idx) => (
               <span
                 key={idx}
                 className={`h-3.5 w-10 rounded-full transition ${
-                  idx < slices ? 'bg-emerald-400 shadow-md shadow-emerald-500/30' : 'bg-stone-800'
+                  idx < slices ? 'bg-emerald-500 shadow-md shadow-emerald-500/30' : 'ui-subtle'
                 }`}
               />
             ))}
           </div>
 
-          {/* Butcher block rhythm bar */}
-          <div className="relative h-16 w-full max-w-lg overflow-hidden rounded-2xl border-2 border-amber-700/60 bg-gradient-to-b from-[#9c6b43] to-[#7d5230] shadow-inner">
-            {/* Sweet spot target zone */}
+          <div className="relative h-16 w-full max-w-lg overflow-hidden rounded-2xl border-2 border-amber-700/60 bg-gradient-to-b from-[#b47c4c] to-[#8f5d34] shadow-inner">
             <div
-              className="absolute inset-y-0 border-x-2 border-emerald-300 bg-emerald-400/35"
+              className="absolute inset-y-0 border-x-2 border-emerald-300 bg-emerald-400/40"
               style={{ left: `${ZONE_MIN}%`, width: `${ZONE_MAX - ZONE_MIN}%` }}
             />
-            {/* Ingredient icon centered */}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-3xl opacity-80">
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-3xl opacity-85">
               {activePair.raw.icon}
             </div>
-            {/* Moving knife indicator */}
             <div
               className="absolute inset-y-1 w-2.5 -translate-x-1/2 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)]"
               style={{ left: `${cursorPct}%` }}
             />
           </div>
 
-          <p className="h-5 text-xs font-bold text-amber-200">{feedback || 'Hazır olduğunda dokun!'}</p>
+          <p className="h-5 text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
+            {feedback || 'Hazır olduğunda dokun!'}
+          </p>
 
           <button
             type="button"
@@ -216,7 +211,7 @@ export function ChoppingMiniGame({
               e.preventDefault();
               void handleSliceTap();
             }}
-            className="w-full max-w-sm rounded-2xl bg-emerald-500 py-4 text-base font-extrabold text-stone-950 shadow-xl transition active:scale-95"
+            className="w-full max-w-sm rounded-2xl bg-emerald-600 py-4 text-base font-extrabold text-white shadow-xl transition active:scale-95"
           >
             {saving ? 'Kaydediliyor...' : `🔪 DOĞRA! (${slices}/${TARGET_SLICES})`}
           </button>

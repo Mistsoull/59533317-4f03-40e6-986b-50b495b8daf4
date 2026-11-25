@@ -1,9 +1,10 @@
+import type { CharacterId } from '../../config/characters';
 import { PROFILES, type ProfileId } from '../../config/profiles';
 import type { RecipeId } from '../../config/recipes';
 import type { StationId } from '../../config/kitchenLayout';
 import type { HomeSnapshot } from '../supabase/types';
 
-const STORAGE_KEY = 'cozy_kitchen_local_home_v1';
+const STORAGE_KEY = 'cozy_kitchen_local_home_v2';
 
 function createSeedSnapshot(): HomeSnapshot {
   return {
@@ -13,11 +14,13 @@ function createSeedSnapshot(): HomeSnapshot {
         id: 'p1',
         displayName: PROFILES.p1.defaultName,
         avatarColor: PROFILES.p1.avatarColor,
+        characterId: PROFILES.p1.defaultCharacter,
       },
       p2: {
         id: 'p2',
         displayName: PROFILES.p2.defaultName,
         avatarColor: PROFILES.p2.avatarColor,
+        characterId: PROFILES.p2.defaultCharacter,
       },
     },
     inventory: {
@@ -98,7 +101,6 @@ export function readLocalHome(): HomeSnapshot {
       return seeded;
     }
     const parsed = JSON.parse(raw) as HomeSnapshot;
-    // Clear any expired station locks on read
     const now = Date.now();
     for (const st of Object.values(parsed.stations)) {
       if (st.lockedBy && st.lockExpiresAt && new Date(st.lockExpiresAt).getTime() < now) {
@@ -107,6 +109,8 @@ export function readLocalHome(): HomeSnapshot {
         if (st.status === 'in_use') st.status = 'idle';
       }
     }
+    if (!parsed.profiles.p1.characterId) parsed.profiles.p1.characterId = 'bubu';
+    if (!parsed.profiles.p2.characterId) parsed.profiles.p2.characterId = 'dudu';
     return parsed;
   } catch {
     return createSeedSnapshot();
@@ -119,6 +123,22 @@ export function writeLocalHome(snapshot: HomeSnapshot): void {
   } catch {
     // Ignore storage quota errors
   }
+}
+
+export function localUpdateProfile(
+  profileId: ProfileId,
+  displayName: string,
+  characterId: CharacterId,
+): HomeSnapshot {
+  const snapshot = readLocalHome();
+  const cleanName = displayName.trim().slice(0, 20) || PROFILES[profileId].defaultName;
+  snapshot.profiles[profileId] = {
+    ...snapshot.profiles[profileId],
+    displayName: cleanName,
+    characterId,
+  };
+  writeLocalHome(snapshot);
+  return snapshot;
 }
 
 export function localAcquireLock(

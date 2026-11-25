@@ -1,15 +1,23 @@
-import type { StationId } from '../config/kitchenLayout';
+import type { RoomId, StationId } from '../config/kitchenLayout';
+import type { MarketStallId } from '../config/marketLayout';
 import type { ProfileId } from '../config/profiles';
 import type { Vec2 } from '../domain/collision2d';
 import type { AnimState } from '../services/supabase/types';
 
+export type PendingDestination =
+  | null
+  | { type: 'station'; stationId: StationId }
+  | { type: 'market_stall'; stallId: MarketStallId }
+  | { type: 'door'; targetRoom: RoomId };
+
 export interface LocalMotionState {
+  room: RoomId;
   x: number;
   z: number;
   rotY: number;
   anim: AnimState;
   waypoints: Vec2[];
-  pendingStation: StationId | null;
+  pendingDest: PendingDestination;
   facingGoal: number | null;
   targetMarker: { x: number; z: number; id: number } | null;
   stepTimer: number;
@@ -18,6 +26,7 @@ export interface LocalMotionState {
 
 export interface RemoteMotionState {
   profileId: ProfileId | null;
+  room: RoomId;
   active: boolean;
   initialized: boolean;
   x: number;
@@ -40,26 +49,32 @@ let markerSeq = 0;
 export const playerMotionStore: {
   local: LocalMotionState;
   remote: RemoteMotionState;
-  resetLocal: (x: number, z: number) => void;
-  setWalkTarget: (waypoints: Vec2[], marker: Vec2 | null, pendingStation: StationId | null) => void;
+  resetLocal: (x: number, z: number, room?: RoomId) => void;
+  setWalkTarget: (
+    waypoints: Vec2[],
+    marker: Vec2 | null,
+    pendingDest: PendingDestination,
+  ) => void;
   setLocalInteracting: (interacting: boolean, facingAngle?: number) => void;
   applyRemotePacket: (
     profileId: ProfileId,
+    room: RoomId,
     x: number,
     z: number,
     rotY: number,
     anim: AnimState,
     seq: number,
   ) => void;
-  setRemoteActive: (active: boolean, profileId?: ProfileId | null) => void;
+  setRemoteActive: (active: boolean, profileId?: ProfileId | null, room?: RoomId) => void;
 } = {
   local: {
+    room: 'kitchen',
     x: -1.4,
     z: -0.3,
     rotY: 0,
     anim: 'Idle',
     waypoints: [],
-    pendingStation: null,
+    pendingDest: null,
     facingGoal: null,
     targetMarker: null,
     stepTimer: 0,
@@ -67,6 +82,7 @@ export const playerMotionStore: {
   },
   remote: {
     profileId: null,
+    room: 'kitchen',
     active: false,
     initialized: false,
     x: 1.4,
@@ -80,21 +96,22 @@ export const playerMotionStore: {
     lastPacketAt: 0,
   },
 
-  resetLocal(x, z) {
+  resetLocal(x, z, room = 'kitchen') {
+    this.local.room = room;
     this.local.x = x;
     this.local.z = z;
     this.local.rotY = 0;
     this.local.anim = 'Idle';
     this.local.waypoints = [];
-    this.local.pendingStation = null;
+    this.local.pendingDest = null;
     this.local.facingGoal = null;
     this.local.targetMarker = null;
     this.local.isInteracting = false;
   },
 
-  setWalkTarget(waypoints, marker, pendingStation) {
+  setWalkTarget(waypoints, marker, pendingDest) {
     this.local.waypoints = waypoints;
-    this.local.pendingStation = pendingStation;
+    this.local.pendingDest = pendingDest;
     this.local.isInteracting = false;
     this.local.facingGoal = null;
     if (marker) {
@@ -107,7 +124,7 @@ export const playerMotionStore: {
     this.local.isInteracting = interacting;
     if (interacting) {
       this.local.waypoints = [];
-      this.local.pendingStation = null;
+      this.local.pendingDest = null;
       this.local.anim = 'Interact';
       if (facingAngle !== undefined) {
         this.local.facingGoal = facingAngle;
@@ -117,8 +134,7 @@ export const playerMotionStore: {
     }
   },
 
-  applyRemotePacket(profileId, x, z, rotY, anim, seq) {
-    // Ignore stale out-of-order packets unless sequence wrapped/restarted
+  applyRemotePacket(profileId, room, x, z, rotY, anim, seq) {
     if (
       this.remote.profileId === profileId &&
       seq < this.remote.lastSeq &&
@@ -127,7 +143,9 @@ export const playerMotionStore: {
       return;
     }
 
+    const roomChanged = this.remote.room !== room;
     this.remote.profileId = profileId;
+    this.remote.room = room;
     this.remote.active = true;
     this.remote.lastSeq = seq;
     this.remote.lastPacketAt = performance.now();
@@ -136,7 +154,7 @@ export const playerMotionStore: {
     this.remote.targetRotY = rotY;
     this.remote.anim = anim;
 
-    if (!this.remote.initialized) {
+    if (!this.remote.initialized || roomChanged) {
       this.remote.x = x;
       this.remote.z = z;
       this.remote.rotY = rotY;
@@ -144,10 +162,13 @@ export const playerMotionStore: {
     }
   },
 
-  setRemoteActive(active, profileId) {
+  setRemoteActive(active, profileId, room) {
     this.remote.active = active;
     if (profileId !== undefined) {
       this.remote.profileId = profileId;
+    }
+    if (room !== undefined) {
+      this.remote.room = room;
     }
     if (!active) {
       this.remote.initialized = false;

@@ -12,14 +12,14 @@ export function ToastLayer() {
       {toasts.map((toast) => {
         const toneCls =
           toast.tone === 'success'
-            ? 'border-emerald-400/40 bg-emerald-950/90 text-emerald-100'
+            ? 'border-emerald-500/40 bg-emerald-600 text-white'
             : toast.tone === 'warn'
-              ? 'border-rose-400/40 bg-rose-950/90 text-rose-100'
-              : 'border-amber-300/30 bg-stone-950/90 text-amber-50';
+              ? 'border-rose-500/40 bg-rose-600 text-white'
+              : 'ui-card';
         return (
           <div
             key={toast.id}
-            className={`rounded-2xl border px-4 py-2 text-xs font-semibold shadow-xl backdrop-blur-md ${toneCls}`}
+            className={`rounded-2xl border px-4 py-2 text-xs font-bold shadow-xl backdrop-blur-md ${toneCls}`}
           >
             {toast.message}
           </div>

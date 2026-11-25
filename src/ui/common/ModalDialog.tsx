@@ -6,7 +6,6 @@ interface ModalDialogProps {
   title: string;
   subtitle?: string;
   icon?: string;
-  /** True enables light-dismiss (closedby="any" + Safari pointer fallback) */
   dismissible?: boolean;
   onClose: () => void;
   headerRight?: ReactNode;
@@ -14,10 +13,8 @@ interface ModalDialogProps {
 }
 
 /**
- * Native <dialog> modal following modern-web-guidance (dialog & light-dismiss-a-dialog):
- * - Opened via showModal() (no redundant role="dialog" or aria-modal)
- * - closedby="any" for dismissible modals + mandatory Safari fallback
- * - Resets returnValue on close
+ * Native <dialog> modal following modern-web-guidance (dialog & light-dismiss-a-dialog).
+ * Adapts cleanly to both Light (default vibrant) and Dark themes via CSS tokens.
  */
 export function ModalDialog({
   open,
@@ -98,10 +95,16 @@ export function ModalDialog({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
-      className="w-[min(92dvw,46rem)] overflow-hidden text-stone-100"
+      className="w-[min(92dvw,46rem)] overflow-hidden"
       {...closedByAttr}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-stone-900/70 px-4 py-3 safe-x">
+      <header
+        className="flex items-center justify-between gap-3 border-b px-4 py-3 safe-x"
+        style={{
+          background: 'var(--dialog-header)',
+          borderColor: 'var(--border-soft)',
+        }}
+      >
         <div className="flex min-w-0 items-center gap-2.5">
           {icon && (
             <span className="text-2xl leading-none" aria-hidden="true">
@@ -109,10 +112,10 @@ export function ModalDialog({
             </span>
           )}
           <div className="min-w-0">
-            <h1 id={titleId} className="text-base font-bold tracking-tight text-amber-50 sm:text-lg">
+            <h1 id={titleId} className="text-base font-extrabold tracking-tight sm:text-lg">
               {title}
             </h1>
-            {subtitle && <p className="text-xs text-stone-400">{subtitle}</p>}
+            {subtitle && <p className="text-xs ui-muted">{subtitle}</p>}
           </div>
         </div>
 
@@ -122,7 +125,7 @@ export function ModalDialog({
             type="button"
             onClick={() => dialogRef.current?.close()}
             aria-label="Kapat"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-stone-800/80 text-stone-200 transition active:scale-95 hover:bg-stone-700"
+            className="ui-subtle inline-flex h-11 w-11 items-center justify-center rounded-xl transition active:scale-95"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>

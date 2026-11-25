@@ -9,6 +9,7 @@ import { useGameStore } from '../../store/useGameStore';
 interface StationInteractableProps {
   stationId: StationId;
   myProfileId: ProfileId;
+  active: boolean;
   onSelectStation: (stationId: StationId) => void;
   children: ReactNode;
 }
@@ -16,6 +17,7 @@ interface StationInteractableProps {
 export function StationInteractable({
   stationId,
   myProfileId,
+  active,
   onSelectStation,
   children,
 }: StationInteractableProps) {
@@ -26,18 +28,22 @@ export function StationInteractable({
 
   const lockedByOther = isStationLockedByOther(stationState, myProfileId);
   const lockerName =
-    stationState.lockedBy ? profiles[stationState.lockedBy]?.displayName ?? PROFILES[stationState.lockedBy].defaultName : null;
+    stationState.lockedBy
+      ? profiles[stationState.lockedBy]?.displayName ?? PROFILES[stationState.lockedBy].defaultName
+      : null;
 
   const [sx, sy, sz] = def.position;
   const [ix, iz] = def.interactionPoint;
   const [hx, hy, hz] = def.hitboxSize;
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (!active) return;
     e.stopPropagation();
     downPosRef.current = { x: e.clientX, y: e.clientY };
   };
 
   const handlePointerUp = (e: ThreeEvent<PointerEvent>) => {
+    if (!active) return;
     e.stopPropagation();
     if (!downPosRef.current) return;
     const moved = Math.hypot(
@@ -49,15 +55,14 @@ export function StationInteractable({
     onSelectStation(stationId);
   };
 
-  const badgeColor = lockedByOther
-    ? 'bg-rose-900/90 border-rose-400/50 text-rose-100'
+  const badgeStyle = lockedByOther
+    ? 'bg-rose-600/95 border-rose-200/80 text-white'
     : stationState.status === 'ready'
-      ? 'bg-amber-600/95 border-amber-200/70 text-white'
-      : 'bg-stone-900/80 border-amber-200/25 text-amber-50';
+      ? 'bg-amber-500/95 border-amber-100 text-stone-950'
+      : 'ui-card shadow-md';
 
   return (
     <group>
-      {/* Station 3D Model positioned on floor y = 0 */}
       <group position={[sx, sy, sz]}>
         {children}
         {/* Generous invisible touch hitbox for Tap-to-Interact */}
@@ -72,14 +77,16 @@ export function StationInteractable({
 
         {/* Station floating label & lock badge */}
         <Html
-          position={[0, Math.min(hy + 0.28, 1.85), stationId === 'fridge' ? 0.45 : 0]}
+          position={[0, stationId === 'fridge' ? 2.02 : 1.48, 0.35]}
           center
           zIndexRange={[5, 0]}
           wrapperClass="pointer-events-none"
           style={{ pointerEvents: 'none' }}
         >
           <div
-            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-lg backdrop-blur-xs whitespace-nowrap ${badgeColor}`}
+            className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold backdrop-blur-xs whitespace-nowrap ${badgeStyle} ${
+              active ? '' : 'hidden'
+            }`}
           >
             {lockedByOther ? (
               <span>🔒 {lockerName} kullanıyor</span>
@@ -99,11 +106,11 @@ export function StationInteractable({
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
       >
-        <ringGeometry args={[0.26, 0.36, 24]} />
+        <ringGeometry args={[0.25, 0.35, 24]} />
         <meshBasicMaterial
-          color={lockedByOther ? '#fb7185' : '#f2cc8f'}
+          color={lockedByOther ? '#e11d48' : '#e07a5f'}
           transparent
-          opacity={0.45}
+          opacity={0.5}
           depthWrite={false}
         />
       </mesh>

@@ -2,7 +2,7 @@
  * Verifies all .glb files in public/models/ against the mandatory 3D Asset Contract:
  *  - Total size < 15 MB
  *  - Draco compression present (KHR_draco_mesh_compression)
- *  - Animated chefs have skins + exact clips: Idle, Walk, Interact
+ *  - Animated characters (char_*.glb) have skins + exact clips: Idle, Walk, Interact
  *  - Bottom-center pivot (minY near 0)
  */
 import fs from 'node:fs';
@@ -13,7 +13,7 @@ import draco3d from 'draco3dgltf';
 
 const MODELS_DIR = path.resolve('public/models');
 const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
-const REQUIRED_CHEF_CLIPS = ['Idle', 'Walk', 'Interact'];
+const REQUIRED_CHAR_CLIPS = ['Idle', 'Walk', 'Interact'];
 
 async function main() {
   if (!fs.existsSync(MODELS_DIR)) {
@@ -66,9 +66,9 @@ async function main() {
     if (!hasDraco) issues.push('missing KHR_draco_mesh_compression');
     if (Math.abs(minY) > 0.05) issues.push(`pivot minY=${minY.toFixed(3)} (expected ~0.0)`);
 
-    if (file.startsWith('chef_')) {
+    if (file.startsWith('char_')) {
       if (skins === 0) issues.push('missing skin for SkeletonUtils.clone');
-      for (const reqClip of REQUIRED_CHEF_CLIPS) {
+      for (const reqClip of REQUIRED_CHAR_CLIPS) {
         if (!clips.includes(reqClip)) issues.push(`missing clip "${reqClip}"`);
       }
     }

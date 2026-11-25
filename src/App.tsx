@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { KITCHEN_STATIONS, type StationId } from './config/kitchenLayout';
+import { KITCHEN_STATIONS, type RoomId, type StationId } from './config/kitchenLayout';
+import { MARKET_SPAWN, type MarketStallId } from './config/marketLayout';
 import { PROFILES, type ProfileId } from './config/profiles';
 import { kitchenAudio } from './domain/audio';
 import { restoreAuthSession, signOutProfile } from './services/supabase/auth';
@@ -30,6 +31,9 @@ export default function App() {
   const setSession = useSessionStore((s) => s.setSession);
   const resetSession = useSessionStore((s) => s.resetSession);
 
+  const currentRoom = useGameStore((s) => s.currentRoom);
+  const setCurrentRoom = useGameStore((s) => s.setCurrentRoom);
+  const openMarketStall = useGameStore((s) => s.openMarketStall);
   const activeOverlay = useGameStore((s) => s.activeOverlay);
   const heldLockStation = useGameStore((s) => s.heldLockStation);
   const setActiveOverlay = useGameStore((s) => s.setActiveOverlay);
@@ -69,20 +73,23 @@ export default function App() {
     if (!profileId) return;
 
     const [sx, sz] = PROFILES[profileId].spawnPosition;
-    playerMotionStore.resetLocal(sx, sz);
+    setCurrentRoom('kitchen');
+    playerMotionStore.resetLocal(sx, sz, 'kitchen');
 
     let cancelled = false;
     void fetchHomeSnapshot().then((snap) => {
       if (cancelled) return;
-      const displayName = snap.profiles[profileId]?.displayName ?? PROFILES[profileId].defaultName;
-      kitchenRealtime.connect(profileId, displayName);
+      const prof = snap.profiles[profileId];
+      const displayName = prof?.displayName ?? PROFILES[profileId].defaultName;
+      const characterId = prof?.characterId ?? PROFILES[profileId].defaultCharacter;
+      kitchenRealtime.connect(profileId, displayName, characterId);
     });
 
     return () => {
       cancelled = true;
       kitchenRealtime.disconnect();
     };
-  }, [profileId]);
+  }, [profileId, setCurrentRoom]);
 
   // Maintain station lock TTL heartbeat (10s) and clean release on pagehide
   useEffect(() => {
@@ -117,6 +124,29 @@ export default function App() {
     }
   }, [setActiveOverlay, setHeldLockStation]);
 
+  const handleEnterRoom = useCallback(
+    async (targetRoom: RoomId) => {
+      if (!profileId) return;
+      await releaseActiveStation();
+      setCurrentRoom(targetRoom);
+
+      const [sx, sz] =
+        targetRoom === 'market'
+          ? MARKET_SPAWN[profileId]
+          : [-2.2, 1.85];
+      playerMotionStore.resetLocal(sx, sz, targetRoom);
+      kitchenRealtime.updatePresenceRoom(targetRoom);
+      kitchenAudio.playFlip();
+      pushToast(
+        targetRoom === 'market'
+          ? '🛒 Mahalle Marketine geldin! Tezgahlara dokunup alışveriş yap.'
+          : '🏠 Mutfağa döndün!',
+        'info',
+      );
+    },
+    [profileId, pushToast, releaseActiveStation, setCurrentRoom],
+  );
+
   const handleArriveAtStation = useCallback(
     async (stationId: StationId) => {
       if (!profileId) return;
@@ -149,6 +179,14 @@ export default function App() {
     [profileId, pushToast, setActiveOverlay, setHeldLockStation],
   );
 
+  const handleArriveAtMarketStall = useCallback(
+    (stallId: MarketStallId) => {
+      kitchenAudio.playTap();
+      openMarketStall(stallId);
+    },
+    [openMarketStall],
+  );
+
   const handleSignedIn = (nextProfile: ProfileId, mode: BackendMode) => {
     setSession(nextProfile, mode);
   };
@@ -162,7 +200,10 @@ export default function App() {
 
   if (booting) {
     return (
-      <div className="flex h-dvh w-dvw items-center justify-center bg-[#1e1b18] text-sm font-semibold text-amber-200">
+      <div
+        className="flex h-dvh w-dvw items-center justify-center text-sm font-bold"
+        style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
+      >
         🍳 Mutfak hazırlanıyor...
       </div>
     );
@@ -175,27 +216,38 @@ export default function App() {
       {!profileId ? (
         <ProfilePinGate onSignedIn={handleSignedIn} />
       ) : (
-        <div className="game-shell relative h-dvh w-dvw overflow-hidden bg-[#1e1b18]">
+        <div
+          className="game-shell relative h-dvh w-dvw overflow-hidden"
+          style={{ background: 'var(--bg-app)' }}
+        >
           <KitchenCanvas
             profileId={profileId}
             onArriveAtStation={(st) => void handleArriveAtStation(st)}
+            onArriveAtMarketStall={handleArriveAtMarketStall}
+            onEnterRoom={(room) => void handleEnterRoom(room)}
           />
 
-          <TopHudBar profileId={profileId} onSignOut={() => void handleSignOut()} />
+          <TopHudBar
+            profileId={profileId}
+            onEnterRoom={(room) => void handleEnterRoom(room)}
+            onSignOut={() => void handleSignOut()}
+          />
           <ToastLayer />
 
-          {/* Subtle bottom control tip */}
-          <div className="pointer-events-none fixed bottom-2 left-3 z-10 rounded-xl border border-white/10 bg-stone-950/65 px-3 py-1.5 text-[11px] text-stone-300 backdrop-blur-xs safe-bottom safe-x">
-            👆 Zemine dokun yürü · İstasyonlara dokun etkileş
+          {/* Compact bottom hint pill */}
+          <div className="ui-card pointer-events-none fixed bottom-2 left-3 z-10 rounded-xl px-3 py-1 text-[11px] font-semibold shadow-sm backdrop-blur-xs safe-bottom safe-x">
+            {currentRoom === 'kitchen'
+              ? '👆 Zemine dokun yürü · İstasyonlara veya Market kapısına dokun'
+              : '🛒 Tezgahlara dokun alışveriş yap · Kapıdan mutfağa dön'}
           </div>
 
-          {/* Modals & Station Mini-Games */}
           <FridgeModal
             open={activeOverlay === 'fridge'}
             onClose={() => setActiveOverlay(null)}
+            onGoToMarket={() => void handleEnterRoom('market')}
           />
           <MarketModal
-            open={activeOverlay === 'market'}
+            open={activeOverlay === 'market_stall'}
             onClose={() => setActiveOverlay(null)}
           />
           <RecipeBookModal
@@ -207,17 +259,13 @@ export default function App() {
             open={activeOverlay === 'cutting_board'}
             profileId={profileId}
             onClose={() => void releaseActiveStation()}
-            onOpenMarket={() => {
-              void releaseActiveStation().then(() => setActiveOverlay('market'));
-            }}
+            onGoToMarket={() => void handleEnterRoom('market')}
           />
           <CookingMiniGame
             open={activeOverlay === 'stove'}
             profileId={profileId}
             onClose={() => void releaseActiveStation()}
-            onOpenMarket={() => {
-              void releaseActiveStation().then(() => setActiveOverlay('market'));
-            }}
+            onGoToMarket={() => void handleEnterRoom('market')}
           />
         </div>
       )}

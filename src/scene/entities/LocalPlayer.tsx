@@ -2,27 +2,33 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type * as THREE from 'three';
+import { CHARACTERS } from '../../config/characters';
 import {
   KITCHEN_BOUNDS,
-  KITCHEN_OBSTACLES,
   KITCHEN_STATIONS,
+  KITCHEN_TO_MARKET_DOOR,
   PLAYER_HALF_EXTENT,
   PLAYER_SPEED,
-  type StationId,
+  type Aabb2D,
+  type RoomId,
 } from '../../config/kitchenLayout';
+import { MARKET_STALLS, MARKET_TO_KITCHEN_DOOR } from '../../config/marketLayout';
 import { PROFILES, type ProfileId } from '../../config/profiles';
 import { kitchenAudio } from '../../domain/audio';
 import { resolveMovement2D } from '../../domain/collision2d';
 import { kitchenRealtime } from '../../services/supabase/realtimeSync';
 import type { AnimState } from '../../services/supabase/types';
-import { playerMotionStore } from '../../store/playerMotionStore';
+import { playerMotionStore, type PendingDestination } from '../../store/playerMotionStore';
 import { useGameStore } from '../../store/useGameStore';
+import type { AssetId } from '../assets/assetManifest';
 import { ModelSlot } from '../assets/ModelSlot';
 import { ChefPlaceholder } from '../assets/placeholders/ChefPlaceholder';
 
 interface LocalPlayerProps {
   profileId: ProfileId;
-  onArriveAtStation: (stationId: StationId) => void;
+  room: RoomId;
+  obstacles: readonly Aabb2D[];
+  onArriveDestination: (dest: NonNullable<PendingDestination>) => void;
 }
 
 function lerpAngle(current: number, target: number, factor: number): number {
@@ -31,15 +37,24 @@ function lerpAngle(current: number, target: number, factor: number): number {
   return current + diff * factor;
 }
 
-export function LocalPlayer({ profileId, onArriveAtStation }: LocalPlayerProps) {
+export function LocalPlayer({
+  profileId,
+  room,
+  obstacles,
+  onArriveDestination,
+}: LocalPlayerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const animRef = useRef<AnimState>('Idle');
-  const displayName = useGameStore((s) => s.profiles[profileId]?.displayName ?? PROFILES[profileId].defaultName);
-  const color = PROFILES[profileId].avatarColor;
+  const profile = useGameStore((s) => s.profiles[profileId]);
+  const displayName = profile?.displayName ?? PROFILES[profileId].defaultName;
+  const characterId = profile?.characterId ?? PROFILES[profileId].defaultCharacter;
+  const charDef = CHARACTERS[characterId] ?? CHARACTERS.bubu;
+  const assetId = `char_${charDef.id}` as AssetId;
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
     const loc = playerMotionStore.local;
+    loc.room = room;
 
     if (loc.waypoints.length > 0 && !loc.isInteracting) {
       const target = loc.waypoints[0];
@@ -53,7 +68,7 @@ export function LocalPlayer({ profileId, onArriveAtStation }: LocalPlayerProps) 
           { x: loc.x, z: loc.z },
           target,
           PLAYER_HALF_EXTENT,
-          KITCHEN_OBSTACLES,
+          obstacles,
           KITCHEN_BOUNDS,
         );
         loc.x = resolved.x;
@@ -62,14 +77,23 @@ export function LocalPlayer({ profileId, onArriveAtStation }: LocalPlayerProps) 
 
         if (loc.waypoints.length === 0) {
           loc.anim = 'Idle';
-          const arrivedStation = loc.pendingStation;
-          if (arrivedStation) {
-            loc.pendingStation = null;
-            loc.facingGoal = KITCHEN_STATIONS[arrivedStation].facingAngle;
-            kitchenRealtime.maybeBroadcastMotion(loc.x, loc.z, loc.rotY, 'Idle', true);
-            onArriveAtStation(arrivedStation);
+          const arrived = loc.pendingDest;
+          if (arrived) {
+            loc.pendingDest = null;
+            if (arrived.type === 'station') {
+              loc.facingGoal = KITCHEN_STATIONS[arrived.stationId].facingAngle;
+            } else if (arrived.type === 'market_stall') {
+              loc.facingGoal = MARKET_STALLS[arrived.stallId].facingAngle;
+            } else if (arrived.type === 'door') {
+              loc.facingGoal =
+                arrived.targetRoom === 'market'
+                  ? KITCHEN_TO_MARKET_DOOR.facingAngle
+                  : MARKET_TO_KITCHEN_DOOR.facingAngle;
+            }
+            kitchenRealtime.maybeBroadcastMotion(room, loc.x, loc.z, loc.rotY, 'Idle', true);
+            onArriveDestination(arrived);
           } else {
-            kitchenRealtime.maybeBroadcastMotion(loc.x, loc.z, loc.rotY, 'Idle', true);
+            kitchenRealtime.maybeBroadcastMotion(room, loc.x, loc.z, loc.rotY, 'Idle', true);
           }
         }
       } else {
@@ -83,7 +107,7 @@ export function LocalPlayer({ profileId, onArriveAtStation }: LocalPlayerProps) 
           { x: loc.x, z: loc.z },
           desired,
           PLAYER_HALF_EXTENT,
-          KITCHEN_OBSTACLES,
+          obstacles,
           KITCHEN_BOUNDS,
         );
         loc.x = resolved.x;
@@ -110,33 +134,33 @@ export function LocalPlayer({ profileId, onArriveAtStation }: LocalPlayerProps) 
     }
 
     // Throttled ~15 Hz Broadcast (NEVER writes to Postgres)
-    kitchenRealtime.maybeBroadcastMotion(loc.x, loc.z, loc.rotY, loc.anim);
+    kitchenRealtime.maybeBroadcastMotion(room, loc.x, loc.z, loc.rotY, loc.anim);
   });
 
   return (
     <group ref={groupRef} position={[playerMotionStore.local.x, 0, playerMotionStore.local.z]}>
       <ModelSlot
-        assetId={profileId === 'p1' ? 'chef_p1' : 'chef_p2'}
+        key={assetId}
+        assetId={assetId}
         animRef={animRef}
-        placeholder={<ChefPlaceholder color={color} animRef={animRef} />}
+        placeholder={<ChefPlaceholder color={charDef.accentColor} animRef={animRef} />}
       />
-      {/* Subtle shadow ring at feet */}
       <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.31, 18]} />
-        <meshBasicMaterial color={color} transparent opacity={0.28} depthWrite={false} />
+        <circleGeometry args={[0.32, 18]} />
+        <meshBasicMaterial color={charDef.accentColor} transparent opacity={0.32} depthWrite={false} />
       </mesh>
       <Html
-        position={[0, 1.82, 0]}
+        position={[0, 1.56, 0]}
         center
         zIndexRange={[5, 0]}
         wrapperClass="pointer-events-none"
         style={{ pointerEvents: 'none' }}
       >
         <div
-          className="rounded-full px-2 py-0.5 text-[11px] font-bold tracking-tight text-white shadow-md whitespace-nowrap border border-white/25"
-          style={{ backgroundColor: `${color}dd` }}
+          className="rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-tight text-white shadow-md whitespace-nowrap border border-white/40"
+          style={{ backgroundColor: `${charDef.accentColor}eb` }}
         >
-          {displayName} (Sen)
+          {charDef.emoji} {displayName}
         </div>
       </Html>
     </group>

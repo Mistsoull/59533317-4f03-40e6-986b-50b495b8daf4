@@ -60,7 +60,6 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
       subtitle="3 tarifin gerçek hayat reçetesi ve Gerçekte Yaptık onayı"
     >
       <div className="grid grid-cols-12 gap-4">
-        {/* Left recipe selector */}
         <nav className="col-span-4 space-y-2" aria-label="Tarifler">
           {RECIPE_LIST.map((r) => {
             const prog = recipesProgress[r.id];
@@ -73,29 +72,27 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
                   kitchenAudio.playTap();
                   setSelectedId(r.id);
                 }}
-                className={`flex w-full flex-col items-start gap-1 rounded-2xl border p-3 text-left transition active:scale-98 ${
+                className={`flex w-full flex-col items-start gap-1 rounded-2xl border-2 p-3 text-left transition active:scale-98 ${
                   active
-                    ? 'border-amber-300/60 bg-amber-500/15 text-amber-50'
-                    : 'border-white/8 bg-stone-900/60 text-stone-300 hover:bg-stone-800/70'
+                    ? 'border-[#e07a5f] bg-[#e07a5f]/12'
+                    : 'ui-surface hover:brightness-98'
                 }`}
               >
-                <div className="flex w-full items-center justify-between gap-2">
-                  <span className="text-sm font-bold">
-                    <span className="mr-1.5" aria-hidden="true">
-                      {r.icon}
-                    </span>
-                    {r.name}
+                <span className="text-sm font-extrabold">
+                  <span className="mr-1.5" aria-hidden="true">
+                    {r.icon}
                   </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 text-[10px]">
-                  <span className="rounded-md bg-stone-950/70 px-1.5 py-0.5 text-amber-200">
+                  {r.name}
+                </span>
+                <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                  <span className="ui-subtle rounded-md px-1.5 py-0.5">
                     Oyunda: {prog.inGameCookCount}×
                   </span>
                   <span
-                    className={`rounded-md px-1.5 py-0.5 font-semibold ${
+                    className={`rounded-md px-1.5 py-0.5 ${
                       prog.irlCookedCount > 0
-                        ? 'bg-emerald-500/25 text-emerald-200'
-                        : 'bg-stone-800 text-stone-400'
+                        ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-200'
+                        : 'ui-subtle ui-muted'
                     }`}
                   >
                     Gerçekte: {prog.irlCookedCount}×
@@ -106,15 +103,14 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
           })}
         </nav>
 
-        {/* Right recipe details + IRL confirmation */}
         <article className="col-span-8 space-y-3">
-          {/* In-game requirements summary */}
-          <div className="rounded-2xl border border-white/10 bg-stone-900/70 p-3">
+          {/* In-game ingredients */}
+          <div className="ui-surface rounded-2xl p-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-300">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-[#d46548]">
                 Oyun İçi Malzemeler
               </h2>
-              <span className="text-xs font-bold text-amber-200">
+              <span className="text-xs font-extrabold text-amber-600 dark:text-amber-300">
                 Ödül: +🪙 {recipe.rewardCoins}
               </span>
             </div>
@@ -126,10 +122,10 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
                 return (
                   <span
                     key={req.itemId}
-                    className={`rounded-lg border px-2 py-1 text-[11px] font-semibold ${
+                    className={`rounded-lg border px-2 py-1 text-[11px] font-bold ${
                       ok
-                        ? 'border-emerald-400/35 bg-emerald-950/50 text-emerald-200'
-                        : 'border-amber-400/25 bg-stone-950/70 text-stone-300'
+                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200'
+                        : 'ui-subtle ui-muted'
                     }`}
                   >
                     {ing?.icon} {ing?.name} ({have}/{req.qty})
@@ -140,26 +136,26 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
           </div>
 
           {/* Real-life recipe */}
-          <div className="rounded-2xl border border-white/10 bg-stone-900/70 p-3.5 space-y-2.5">
+          <div className="ui-surface space-y-2.5 rounded-2xl p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-extrabold text-amber-50">
+              <h2 className="text-sm font-extrabold">
                 Gerçek Hayat Tarifi — {recipe.name}
               </h2>
-              <div className="flex items-center gap-2 text-[11px] text-stone-300">
-                <span className="inline-flex items-center gap-1 rounded-md bg-stone-800 px-2 py-0.5">
-                  <Clock className="h-3 w-3 text-amber-300" aria-hidden="true" />
+              <div className="flex items-center gap-2 text-[11px] font-semibold">
+                <span className="ui-subtle inline-flex items-center gap-1 rounded-md px-2 py-0.5">
+                  <Clock className="h-3 w-3 text-[#e07a5f]" aria-hidden="true" />
                   {recipe.irl.prepTime}
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-md bg-stone-800 px-2 py-0.5">
-                  <Users className="h-3 w-3 text-emerald-300" aria-hidden="true" />
+                <span className="ui-subtle inline-flex items-center gap-1 rounded-md px-2 py-0.5">
+                  <Users className="h-3 w-3 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
                   {recipe.irl.servings}
                 </span>
               </div>
             </div>
 
             <div>
-              <h3 className="text-xs font-bold text-amber-200/90">Malzemeler</h3>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-stone-200">
+              <h3 className="text-xs font-bold text-[#d46548]">Malzemeler</h3>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs">
                 {recipe.irl.ingredients.map((line, i) => (
                   <li key={i}>{line}</li>
                 ))}
@@ -167,23 +163,23 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
             </div>
 
             <div>
-              <h3 className="text-xs font-bold text-amber-200/90">Hazırlanışı</h3>
-              <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-stone-200">
+              <h3 className="text-xs font-bold text-[#d46548]">Hazırlanışı</h3>
+              <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs">
                 {recipe.irl.steps.map((step, i) => (
                   <li key={i}>{step}</li>
                 ))}
               </ol>
             </div>
 
-            <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            <p className="rounded-xl bg-amber-500/12 px-3 py-2 text-[11px]">
               ✨ <strong>Şef Notu:</strong> {recipe.irl.chefTip}
             </p>
           </div>
 
-          {/* "Gerçekte Yaptık!" confirmation box */}
-          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-950/30 p-3.5 space-y-2.5">
+          {/* IRL Confirmation */}
+          <div className="space-y-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="flex items-center gap-1.5 text-sm font-extrabold text-emerald-200">
+              <h2 className="flex items-center gap-1.5 text-sm font-extrabold text-emerald-700 dark:text-emerald-200">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 Gerçekte Yaptık!
               </h2>
@@ -195,10 +191,10 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
                   return (
                     <span
                       key={pid}
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold ${
                         confirmed
-                          ? 'bg-emerald-500/25 text-emerald-100'
-                          : 'bg-stone-800 text-stone-400'
+                          ? 'bg-emerald-600 text-white'
+                          : 'ui-subtle ui-muted'
                       }`}
                     >
                       <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
@@ -210,7 +206,7 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
             </div>
 
             {progress.irlNote && (
-              <p className="rounded-lg bg-stone-950/60 px-2.5 py-1.5 text-xs italic text-stone-200">
+              <p className="ui-surface rounded-lg px-2.5 py-1.5 text-xs italic">
                 &ldquo;{progress.irlNote}&rdquo;
               </p>
             )}
@@ -222,7 +218,7 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
                 onChange={(e) => setNote(e.target.value)}
                 maxLength={120}
                 placeholder="Kısa anı notu (isteğe bağlı)..."
-                className="flex-1 rounded-xl border border-white/15 bg-stone-950/75 px-3 py-2 text-xs text-white placeholder:text-stone-500"
+                className="ui-surface flex-1 rounded-xl px-3 py-2 text-xs"
               />
 
               {bothConfirmed ? (
@@ -230,12 +226,12 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
                   type="button"
                   disabled={submitting}
                   onClick={() => handleConfirmIrl(true)}
-                  className="shrink-0 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-extrabold text-stone-950 transition active:scale-95"
+                  className="shrink-0 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-extrabold text-white transition active:scale-95"
                 >
                   Tekrar Yaptık (+30 🪙)
                 </button>
               ) : myConfirmed ? (
-                <span className="shrink-0 rounded-xl border border-emerald-400/30 bg-emerald-900/40 px-3 py-2 text-xs font-semibold text-emerald-200">
+                <span className="shrink-0 rounded-xl border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-200">
                   Onayladın ✓ (Partner bekleniyor)
                 </span>
               ) : (
@@ -243,7 +239,7 @@ export function RecipeBookModal({ open, profileId, onClose }: RecipeBookModalPro
                   type="button"
                   disabled={submitting}
                   onClick={() => handleConfirmIrl(false)}
-                  className="shrink-0 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-extrabold text-stone-950 transition active:scale-95"
+                  className="shrink-0 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-extrabold text-white transition active:scale-95"
                 >
                   {partnerConfirmed
                     ? 'Ben de Onaylıyorum (+50 🪙)'

@@ -1,9 +1,12 @@
+import type { CharacterId } from './characters';
+
 export type ProfileId = 'p1' | 'p2';
 
 export interface ProfileDefinition {
   id: ProfileId;
   email: string;
   defaultName: string;
+  defaultCharacter: CharacterId;
   avatarColor: string;
   accentColor: string;
   spawnPosition: readonly [number, number];
@@ -14,6 +17,7 @@ export const PROFILES: Record<ProfileId, ProfileDefinition> = {
     id: 'p1',
     email: 'p1@home.local',
     defaultName: 'Şef 1',
+    defaultCharacter: 'bubu',
     avatarColor: '#e07a5f',
     accentColor: '#fde8e1',
     spawnPosition: [-1.4, -0.3],
@@ -22,6 +26,7 @@ export const PROFILES: Record<ProfileId, ProfileDefinition> = {
     id: 'p2',
     email: 'p2@home.local',
     defaultName: 'Şef 2',
+    defaultCharacter: 'dudu',
     avatarColor: '#3d9970',
     accentColor: '#e2f7ec',
     spawnPosition: [1.4, -0.3],

@@ -60,6 +60,7 @@ Bu kurallar proje boyunca bağlayıcıdır. Hiçbir fazda kullanıcı onayı olm
   - **Market** ekranı
   - **3 tarif** (hızlı dokunmatik pişirme mini-oyunları + Tarif Defteri'nde gerçek hayat tarifi ve "Gerçekte Yaptık" onayı)
 
-## 7. Kod Kalitesi ve Modülerlik
+## 7. Kod Kalitesi, Modülerlik ve Dokümantasyon
 - Domain mantığı (`src/domain/`) React, Three.js ve Supabase'den bağımsız saf TypeScript olmalı ve birim testleriyle (`Vitest`) kapsanmalıdır.
 - Her yeni dosya ve değişiklik `tsc --noEmit` ve ilgili testlerden hatasız geçmelidir.
+- **Zorunlu `AGENTS.md` Güncellemesi:** Projede yapılan her kod, özellik, kamera, UI, teknoloji, veritabanı veya yapılandırma güncellemesinden sonra kök dizindeki `AGENTS.md` dosyası (ilgili bölümler ve Güncelleme Günlüğü) mutlaka güncellenmelidir.

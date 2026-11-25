@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Languages, LogOut, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
+import { BookOpen, Languages, LogOut, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
 import { kitchenAudio } from '../../domain/audio';
 import { getTranslations } from '../../i18n/translations';
 import { useLanguageStore } from '../../store/useLanguageStore';
+import { useSettingsStore } from '../../store/useSettingsStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ModalDialog } from '../common/ModalDialog';
 
@@ -14,13 +15,15 @@ interface SettingsModalProps {
 
 /**
  * Centered settings popup housing Language (TR/DE), Theme (Light/Dark),
- * Audio toggle, and Sign Out / Switch Profile.
+ * Sound toggle, Real-life Recipes toggle, and Sign Out / Switch Profile.
  */
 export function SettingsModal({ open, onClose, onSignOut }: SettingsModalProps) {
   const lang = useLanguageStore((s) => s.lang);
   const setLang = useLanguageStore((s) => s.setLang);
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const showRealLifeRecipes = useSettingsStore((s) => s.showRealLifeRecipes);
+  const toggleRealLifeRecipes = useSettingsStore((s) => s.toggleRealLifeRecipes);
   const [muted, setMuted] = useState(() => kitchenAudio.isMuted());
 
   const t = getTranslations(lang);
@@ -34,7 +37,7 @@ export function SettingsModal({ open, onClose, onSignOut }: SettingsModalProps) 
       title={t.settingsTitle}
       subtitle={t.settingsSubtitle}
     >
-      <div className="space-y-3.5">
+      <div className="space-y-3">
         {/* Language Selection: TR / DE */}
         <section className="ui-surface rounded-2xl p-3 space-y-2">
           <div className="flex items-center gap-2 text-xs font-extrabold ui-muted">
@@ -49,7 +52,7 @@ export function SettingsModal({ open, onClose, onSignOut }: SettingsModalProps) 
                 kitchenAudio.playTap();
                 setLang('tr');
               }}
-              className={`rounded-xl py-2.5 text-xs font-extrabold transition active:scale-95 ${
+              className={`rounded-xl py-2 text-xs font-extrabold transition active:scale-95 ${
                 lang === 'tr'
                   ? 'bg-[#e07a5f] text-white shadow-sm'
                   : 'ui-subtle hover:brightness-95'
@@ -64,7 +67,7 @@ export function SettingsModal({ open, onClose, onSignOut }: SettingsModalProps) 
                 kitchenAudio.playTap();
                 setLang('de');
               }}
-              className={`rounded-xl py-2.5 text-xs font-extrabold transition active:scale-95 ${
+              className={`rounded-xl py-2 text-xs font-extrabold transition active:scale-95 ${
                 lang === 'de'
                   ? 'bg-[#e07a5f] text-white shadow-sm'
                   : 'ui-subtle hover:brightness-95'
@@ -93,7 +96,7 @@ export function SettingsModal({ open, onClose, onSignOut }: SettingsModalProps) 
                 kitchenAudio.playTap();
                 setTheme('light');
               }}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-extrabold transition active:scale-95 ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-extrabold transition active:scale-95 ${
                 theme === 'light'
                   ? 'bg-amber-500 text-stone-950 shadow-sm'
                   : 'ui-subtle hover:brightness-95'
@@ -109,7 +112,7 @@ export function SettingsModal({ open, onClose, onSignOut }: SettingsModalProps) 
                 kitchenAudio.playTap();
                 setTheme('dark');
               }}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-extrabold transition active:scale-95 ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-extrabold transition active:scale-95 ${
                 theme === 'dark'
                   ? 'bg-stone-800 text-amber-200 ring-2 ring-amber-400/50 shadow-sm'
                   : 'ui-subtle hover:brightness-95'
@@ -135,12 +138,38 @@ export function SettingsModal({ open, onClose, onSignOut }: SettingsModalProps) 
             type="button"
             onClick={() => setMuted(kitchenAudio.toggleMute())}
             className={`rounded-xl px-4 py-2 text-xs font-extrabold transition active:scale-95 ${
-              muted
-                ? 'ui-subtle ui-muted'
-                : 'bg-emerald-600 text-white shadow-sm'
+              muted ? 'ui-subtle ui-muted' : 'bg-emerald-600 text-white shadow-sm'
             }`}
           >
             {muted ? t.soundOff : t.soundOn}
+          </button>
+        </section>
+
+        {/* Real-Life Recipes Toggle */}
+        <section className="ui-surface flex items-center justify-between gap-3 rounded-2xl p-3">
+          <div className="flex items-center gap-2 text-xs font-extrabold">
+            <BookOpen
+              className={`h-4 w-4 ${showRealLifeRecipes ? 'text-[#e07a5f]' : 'ui-muted'}`}
+              aria-hidden="true"
+            />
+            <span>{t.realLifeRecipesLabel}</span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showRealLifeRecipes}
+            onClick={() => {
+              kitchenAudio.unlockSync();
+              kitchenAudio.playTap();
+              toggleRealLifeRecipes();
+            }}
+            className={`rounded-xl px-4 py-2 text-xs font-extrabold transition active:scale-95 ${
+              showRealLifeRecipes
+                ? 'bg-[#e07a5f] text-white shadow-sm'
+                : 'ui-subtle ui-muted'
+            }`}
+          >
+            {showRealLifeRecipes ? t.enabledLabel : t.disabledLabel}
           </button>
         </section>
 

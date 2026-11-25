@@ -5,9 +5,9 @@ import type * as THREE from 'three';
 import type { RoomId } from '../config/kitchenLayout';
 
 /**
- * Dual-mode camera:
- *  - Kitchen: crisp isometric OrthographicCamera tightly framing the 8m x 6m kitchen
- *  - Market: immersive interior PerspectiveCamera placed INSIDE the 3-walled grocery shop
+ * Dual-mode diagonal camera:
+ *  - Kitchen: crisp true-45° diagonal isometric OrthographicCamera
+ *  - Market: immersive full-screen enclosed interior PerspectiveCamera angled diagonally
  *    so the shop fills 100% of the viewport edge-to-edge with zero outside void.
  */
 export function IsometricCamera({ room }: { room: RoomId }) {
@@ -16,16 +16,16 @@ export function IsometricCamera({ room }: { room: RoomId }) {
   const { size } = useThree();
 
   const aspect = size.width / Math.max(1, size.height);
-  const kitchenZoom = Math.min(size.width / 9.3, size.height / 6.25);
-  // Adapt Market interior FOV by viewport aspect so Door + all 3 Stalls + Walls fill 100% edge-to-edge
+  const kitchenZoom = Math.min(size.width / 9.2, size.height / 6.15);
+  // Adapt Market diagonal interior FOV by viewport aspect so Door + all 3 Stalls + Walls fill edge-to-edge
   const marketFov = aspect < 1.35 ? 48 : aspect > 1.95 ? 36 : 42;
 
   useEffect(() => {
     if (room === 'kitchen' && orthoRef.current) {
-      orthoRef.current.lookAt(0, 0.72, -0.22);
+      orthoRef.current.lookAt(0, 0.65, -0.2);
       orthoRef.current.updateProjectionMatrix();
     } else if (room === 'market' && perspRef.current) {
-      perspRef.current.lookAt(-0.1, 0.95, -1.4);
+      perspRef.current.lookAt(-0.35, 0.92, -1.35);
       perspRef.current.updateProjectionMatrix();
     }
   }, [room, size.width, size.height]);
@@ -35,7 +35,7 @@ export function IsometricCamera({ room }: { room: RoomId }) {
       <PerspectiveCamera
         ref={perspRef}
         makeDefault
-        position={[0.0, 5.15, 7.15]}
+        position={[2.35, 5.0, 6.7]}
         fov={marketFov}
         near={0.1}
         far={50}
@@ -47,7 +47,7 @@ export function IsometricCamera({ room }: { room: RoomId }) {
     <OrthographicCamera
       ref={orthoRef}
       makeDefault
-      position={[10.5, 10.2, 13.0]}
+      position={[12, 11.2, 12]}
       zoom={Math.max(46, kitchenZoom)}
       near={0.1}
       far={60}

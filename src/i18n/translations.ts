@@ -52,6 +52,9 @@ interface TranslationBundle {
   soundLabel: string;
   soundOn: string;
   soundOff: string;
+  realLifeRecipesLabel: string;
+  enabledLabel: string;
+  disabledLabel: string;
   signOutBtn: string;
 
   // Rooms & Doors
@@ -187,6 +190,9 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     soundLabel: 'Ses Efektleri',
     soundOn: 'Ses Açık',
     soundOff: 'Ses Kapalı',
+    realLifeRecipesLabel: 'Gerçek Hayat Tarifleri',
+    enabledLabel: 'Açık',
+    disabledLabel: 'Kapalı',
     signOutBtn: 'Çıkış Yap / Profil Değiştir',
 
     goToMarketDoor: 'Markete Git',
@@ -419,6 +425,9 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     soundLabel: 'Soundeffekte',
     soundOn: 'Ton an',
     soundOff: 'Ton aus',
+    realLifeRecipesLabel: 'Echte Rezepte',
+    enabledLabel: 'An',
+    disabledLabel: 'Aus',
     signOutBtn: 'Abmelden / Profil wechseln',
 
     goToMarketDoor: 'Zum Markt',

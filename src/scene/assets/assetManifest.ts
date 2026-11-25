@@ -17,7 +17,15 @@ export type AssetId =
   | 'food_sut'
   | 'market_produce'
   | 'market_dairy'
-  | 'market_pantry';
+  | 'market_pantry'
+  | 'waiter'
+  | 'cust_fox'
+  | 'cust_bunny'
+  | 'cust_bear'
+  | 'restaurant_table'
+  | 'dish_menemen'
+  | 'dish_mantarli_makarna'
+  | 'dish_pankek';
 
 export interface AssetManifestEntry {
   id: AssetId;
@@ -57,4 +65,13 @@ export const ASSET_MANIFEST: Record<AssetId, AssetManifestEntry> = {
   market_produce: { id: 'market_produce', mode: 'glb', glbFile: 'market_produce.glb', skinned: false, scale: 1 },
   market_dairy: { id: 'market_dairy', mode: 'glb', glbFile: 'market_dairy.glb', skinned: false, scale: 1 },
   market_pantry: { id: 'market_pantry', mode: 'glb', glbFile: 'market_pantry.glb', skinned: false, scale: 1 },
+
+  waiter: { id: 'waiter', mode: 'glb', glbFile: 'waiter.glb', skinned: true, scale: 1, clips: ['Idle', 'Walk', 'Interact'] },
+  cust_fox: { id: 'cust_fox', mode: 'glb', glbFile: 'cust_fox.glb', skinned: true, scale: 0.96, clips: ['Idle', 'Walk', 'Interact'] },
+  cust_bunny: { id: 'cust_bunny', mode: 'glb', glbFile: 'cust_bunny.glb', skinned: true, scale: 0.96, clips: ['Idle', 'Walk', 'Interact'] },
+  cust_bear: { id: 'cust_bear', mode: 'glb', glbFile: 'cust_bear.glb', skinned: true, scale: 0.98, clips: ['Idle', 'Walk', 'Interact'] },
+  restaurant_table: { id: 'restaurant_table', mode: 'glb', glbFile: 'restaurant_table.glb', skinned: false, scale: 1 },
+  dish_menemen: { id: 'dish_menemen', mode: 'glb', glbFile: 'dish_menemen.glb', skinned: false, scale: 1 },
+  dish_mantarli_makarna: { id: 'dish_mantarli_makarna', mode: 'glb', glbFile: 'dish_mantarli_makarna.glb', skinned: false, scale: 1 },
+  dish_pankek: { id: 'dish_pankek', mode: 'glb', glbFile: 'dish_pankek.glb', skinned: false, scale: 1 },
 };

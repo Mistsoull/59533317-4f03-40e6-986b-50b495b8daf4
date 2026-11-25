@@ -1,8 +1,9 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import type { CharacterId } from '../../config/characters';
 import { PROFILES, type ProfileId } from '../../config/profiles';
-import type { RecipeId } from '../../config/recipes';
+import { RECIPES, type RecipeDifficulty, type RecipeId } from '../../config/recipes';
 import type { RoomId, StationId } from '../../config/kitchenLayout';
+import type { CustomerAvatarId, TableId } from '../../config/restaurantLayout';
 import {
   EMPTY_LOBBY_OCCUPANCY,
   buildLobbyOccupancy,
@@ -11,6 +12,8 @@ import {
   type LobbyOccupancy,
   type OccupiedEntry,
 } from '../../domain/lobbyOccupancy';
+import type { OrderStatus } from '../../domain/restaurantRules';
+import { kitchenAudio } from '../../domain/audio';
 import { getTranslations } from '../../i18n/translations';
 import { createLobbyObserverClient, getSupabaseClient } from './client';
 import type {
@@ -442,10 +445,33 @@ class KitchenRealtimeSync {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'home_state' },
         (payload) => {
-          const row = payload.new as { coins?: number } | undefined;
-          if (row && typeof row.coins === 'number') {
+          const row = payload.new as
+            | {
+                coins?: number;
+                restaurant_open?: boolean;
+                served_orders_count?: number;
+                service_streak?: number;
+                last_order_spawned_at?: string | null;
+              }
+            | undefined;
+          if (!row) return;
+          if (typeof row.coins === 'number') {
             useGameStore.getState().setCoins(row.coins);
           }
+          useGameStore.getState().patchRestaurantMeta({
+            restaurantOpen:
+              typeof row.restaurant_open === 'boolean' ? row.restaurant_open : undefined,
+            servedOrdersCount:
+              typeof row.served_orders_count === 'number'
+                ? row.served_orders_count
+                : undefined,
+            serviceStreak:
+              typeof row.service_streak === 'number' ? row.service_streak : undefined,
+            lastOrderSpawnedAt:
+              row.last_order_spawned_at !== undefined
+                ? row.last_order_spawned_at
+                : undefined,
+          });
         },
       )
       .on(
@@ -507,6 +533,49 @@ class KitchenRealtimeSync {
               irlLastCookedAt: row.irl_last_cooked_at ?? null,
               irlNote: row.irl_note ?? null,
             });
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'restaurant_orders' },
+        (payload) => {
+          const row = payload.new as {
+            id?: string;
+            table_id?: TableId;
+            recipe_id?: RecipeId;
+            difficulty?: RecipeDifficulty;
+            customer_name?: string;
+            customer_avatar?: CustomerAvatarId;
+            status?: OrderStatus;
+            created_at?: string;
+            expires_at?: string;
+            delivered_at?: string | null;
+            served_by?: ProfileId | null;
+            reward_coins?: number;
+            tip_coins?: number;
+          };
+          if (!row?.id || !row.table_id || !row.recipe_id) return;
+          const prevExists = useGameStore
+            .getState()
+            .orders.some((o) => o.id === row.id);
+          useGameStore.getState().upsertOrder({
+            id: row.id,
+            tableId: row.table_id,
+            recipeId: row.recipe_id,
+            difficulty: row.difficulty ?? RECIPES[row.recipe_id].difficulty,
+            customerName: row.customer_name ?? 'Misafir',
+            customerAvatar: row.customer_avatar ?? 'cust_fox',
+            status: row.status ?? 'waiting',
+            createdAt: row.created_at ?? new Date().toISOString(),
+            expiresAt: row.expires_at ?? new Date().toISOString(),
+            deliveredAt: row.delivered_at ?? null,
+            servedBy: row.served_by ?? null,
+            rewardCoins: Number(row.reward_coins ?? 0),
+            tipCoins: Number(row.tip_coins ?? 0),
+          });
+          if (!prevExists && row.status === 'waiting') {
+            kitchenAudio.playBell();
           }
         },
       );

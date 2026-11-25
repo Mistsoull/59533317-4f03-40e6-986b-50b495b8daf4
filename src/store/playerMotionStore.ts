@@ -8,6 +8,7 @@ export type PendingDestination =
   | null
   | { type: 'station'; stationId: StationId }
   | { type: 'market_stall'; stallId: MarketStallId }
+  | { type: 'service_pass' }
   | { type: 'door'; targetRoom: RoomId };
 
 export interface LocalMotionState {

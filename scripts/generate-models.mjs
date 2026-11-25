@@ -539,7 +539,7 @@ function buildRiggedCharacter(kind) {
 
     // Mini cozy apron
     addPrimitive(doc, buffer, mesh, buildBox(0.25, 0.22, 0.06, 0, 0.45, 0.23, 1), apronMat);
-  } else {
+  } else if (kind === 'dudu') {
     // DUDU — Chubby adorable warm brown bear with round brown ears, cream muzzle & blush!
     const bearBrown = createMat(doc, 'DuduBrown', '#a47148', 0.72, 0.02);
     const bearEar = createMat(doc, 'DuduDarkBrown', '#835330', 0.72, 0.02);
@@ -588,6 +588,174 @@ function buildRiggedCharacter(kind) {
 
     // Mini cozy apron
     addPrimitive(doc, buffer, mesh, buildBox(0.25, 0.22, 0.06, 0, 0.45, 0.23, 1), apronMat);
+  } else if (kind === 'waiter') {
+    // WAITER NPC — Charming bistro penguin/bear waiter in crisp white shirt, dark vest, burgundy bow tie & silver tray!
+    const darkSuit = createMat(doc, 'WaiterSuit', '#262b36', 0.6, 0.08);
+    const shirtWhite = createMat(doc, 'WaiterShirt', '#ffffff', 0.65, 0.02);
+    const bowTieRed = createMat(doc, 'WaiterBow', '#c1121f', 0.5, 0.04);
+    const skinCream = createMat(doc, 'WaiterFace', '#ffe5cc', 0.72, 0.02);
+    const hairBrown = createMat(doc, 'WaiterHair', '#5c3d2e', 0.72, 0.02);
+    const traySilver = createMat(doc, 'TraySilver', '#dce4ec', 0.22, 0.82);
+
+    // Dark dress shoes & trousers resting strictly at y = 0.00
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.085, 0.14, 0.1, 8, 10, -0.11, 0.14, 0.01, 5),
+      buildEllipsoid(0.085, 0.14, 0.1, 8, 10, 0.11, 0.14, 0.01, 6),
+      // Tailored vest body
+      buildEllipsoid(0.23, 0.28, 0.2, 10, 12, 0, 0.52, 0, 1),
+    ]), darkSuit);
+
+    // Crisp white shirt front, sleeves & waist apron
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.14, 0.19, 0.08, 8, 10, 0, 0.56, 0.15, 1),
+      buildBox(0.26, 0.24, 0.06, 0, 0.36, 0.19, 1),
+      buildEllipsoid(0.075, 0.16, 0.075, 8, 10, -0.25, 0.56, 0.02, 3),
+      buildEllipsoid(0.075, 0.16, 0.075, 8, 10, 0.25, 0.56, 0.02, 4),
+    ]), shirtWhite);
+
+    // Burgundy bow tie
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildBox(0.14, 0.055, 0.04, 0, 0.73, 0.2, 1),
+      buildEllipsoid(0.032, 0.032, 0.032, 6, 8, 0, 0.73, 0.22, 1),
+    ]), bowTieRed);
+
+    // Friendly head + cute little mustache/hair + bistro cap
+    addPrimitive(doc, buffer, mesh, buildEllipsoid(0.23, 0.23, 0.22, 10, 14, 0, 0.96, 0, 2), skinCream);
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.235, 0.12, 0.225, 10, 12, 0, 1.1, -0.02, 2),
+      buildEllipsoid(0.055, 0.022, 0.022, 6, 8, -0.04, 0.89, 0.215, 2),
+      buildEllipsoid(0.055, 0.022, 0.022, 6, 8, 0.04, 0.89, 0.215, 2),
+    ]), hairBrown);
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildCylinder(0.16, 0.15, 0.07, 12, 0, 1.2, 0, 2),
+      buildBox(0.2, 0.025, 0.14, 0, 1.17, 0.12, 2),
+    ]), darkSuit);
+
+    // Eyes & blush
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.03, 0.036, 0.022, 8, 8, -0.085, 0.98, 0.205, 2),
+      buildEllipsoid(0.03, 0.036, 0.022, 8, 8, 0.085, 0.98, 0.205, 2),
+    ]), eyeMat);
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.04, 0.022, 0.02, 6, 8, -0.14, 0.92, 0.19, 2),
+      buildEllipsoid(0.04, 0.022, 0.02, 6, 8, 0.14, 0.92, 0.19, 2),
+    ]), blushMat);
+
+    // Classic silver waiter tray on right hand (joint 4)
+    addPrimitive(doc, buffer, mesh, buildCylinder(0.22, 0.2, 0.025, 14, 0.28, 0.67, 0.24, 4), traySilver);
+  } else if (kind === 'cust_fox') {
+    // CUSTOMER FOX — Cozy cinnamon fox guest with pointed ears, fluffy tail & cream scarf
+    const foxOrange = createMat(doc, 'FoxOrange', '#e76f51', 0.72, 0.02);
+    const foxDark = createMat(doc, 'FoxDark', '#3d2b24', 0.75, 0.02);
+    const foxCream = createMat(doc, 'FoxCream', '#fff4e6', 0.72, 0.02);
+    const scarfMat = createMat(doc, 'FoxScarf', '#2a9d8f', 0.68, 0.02);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.082, 0.135, 0.09, 8, 10, -0.11, 0.135, 0.01, 5),
+      buildEllipsoid(0.082, 0.135, 0.09, 8, 10, 0.11, 0.135, 0.01, 6),
+      transformGeom(buildCone(0.055, 0.1, 6, 0, 0, 0, 2), 0, 0, 0.24, -0.175, 1.24, 0),
+      transformGeom(buildCone(0.055, 0.1, 6, 0, 0, 0, 2), 0, 0, -0.24, 0.175, 1.24, 0),
+    ]), foxDark);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.23, 0.27, 0.2, 10, 12, 0, 0.5, 0, 1),
+      buildEllipsoid(0.25, 0.22, 0.23, 10, 14, 0, 0.95, 0.01, 2),
+      buildEllipsoid(0.072, 0.15, 0.072, 8, 10, -0.25, 0.54, 0.02, 3),
+      buildEllipsoid(0.072, 0.15, 0.072, 8, 10, 0.25, 0.54, 0.02, 4),
+      transformGeom(buildCone(0.085, 0.18, 8, 0, 0, 0, 2), 0, 0, 0.24, -0.155, 1.18, 0),
+      transformGeom(buildCone(0.085, 0.18, 8, 0, 0, 0, 2), 0, 0, -0.24, 0.155, 1.18, 0),
+      transformGeom(buildEllipsoid(0.09, 0.18, 0.09, 8, 10, 0, 0, 0, 7), -0.9, 0, 0, 0, 0.44, -0.3),
+    ]), foxOrange);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.14, 0.16, 0.09, 8, 10, 0, 0.49, 0.15, 1),
+      buildEllipsoid(0.11, 0.075, 0.11, 8, 10, 0, 0.9, 0.21, 2),
+      buildEllipsoid(0.075, 0.08, 0.075, 6, 8, 0, 0.52, -0.43, 7),
+    ]), foxCream);
+
+    addPrimitive(doc, buffer, mesh, buildCylinder(0.18, 0.19, 0.09, 12, 0, 0.74, 0, 1), scarfMat);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.032, 0.038, 0.024, 8, 8, -0.09, 0.98, 0.21, 2),
+      buildEllipsoid(0.032, 0.038, 0.024, 8, 8, 0.09, 0.98, 0.21, 2),
+      buildEllipsoid(0.036, 0.026, 0.028, 6, 8, 0, 0.92, 0.3, 2),
+    ]), eyeMat);
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.04, 0.022, 0.02, 6, 8, -0.14, 0.92, 0.19, 2),
+      buildEllipsoid(0.04, 0.022, 0.02, 6, 8, 0.14, 0.92, 0.19, 2),
+    ]), blushMat);
+  } else if (kind === 'cust_bunny') {
+    // CUSTOMER BUNNY — Pastel cream bunny with tall ears, cotton tail & lavender sweater
+    const bunnyFur = createMat(doc, 'BunnyFur', '#fdf5ec', 0.72, 0.02);
+    const bunnyPink = createMat(doc, 'BunnyPink', '#f4a8b8', 0.65, 0.02);
+    const sweaterMat = createMat(doc, 'BunnySweater', '#9b72aa', 0.7, 0.02);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.085, 0.135, 0.1, 8, 10, -0.11, 0.135, 0.01, 5),
+      buildEllipsoid(0.085, 0.135, 0.1, 8, 10, 0.11, 0.135, 0.01, 6),
+      buildEllipsoid(0.24, 0.22, 0.23, 10, 14, 0, 0.95, 0, 2),
+      // Tall cute bunny ears
+      transformGeom(buildEllipsoid(0.058, 0.19, 0.045, 8, 10, 0, 0, 0, 2), 0, 0, 0.12, -0.1, 1.3, 0),
+      transformGeom(buildEllipsoid(0.058, 0.19, 0.045, 8, 10, 0, 0, 0, 2), 0, 0, -0.12, 0.1, 1.3, 0),
+      // Cotton ball tail
+      buildEllipsoid(0.085, 0.085, 0.085, 8, 8, 0, 0.36, -0.24, 7),
+    ]), bunnyFur);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.24, 0.27, 0.21, 10, 12, 0, 0.5, 0, 1),
+      buildEllipsoid(0.075, 0.15, 0.075, 8, 10, -0.25, 0.54, 0.02, 3),
+      buildEllipsoid(0.075, 0.15, 0.075, 8, 10, 0.25, 0.54, 0.02, 4),
+    ]), sweaterMat);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      transformGeom(buildEllipsoid(0.032, 0.13, 0.025, 6, 8, 0, 0, 0, 2), 0, 0, 0.12, -0.1, 1.3, 0.035),
+      transformGeom(buildEllipsoid(0.032, 0.13, 0.025, 6, 8, 0, 0, 0, 2), 0, 0, -0.12, 0.1, 1.3, 0.035),
+      buildEllipsoid(0.032, 0.022, 0.022, 6, 8, 0, 0.93, 0.23, 2),
+    ]), bunnyPink);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.032, 0.038, 0.022, 8, 8, -0.09, 0.98, 0.215, 2),
+      buildEllipsoid(0.032, 0.038, 0.022, 8, 8, 0.09, 0.98, 0.215, 2),
+    ]), eyeMat);
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.042, 0.024, 0.02, 6, 8, -0.145, 0.91, 0.2, 2),
+      buildEllipsoid(0.042, 0.024, 0.02, 6, 8, 0.145, 0.91, 0.2, 2),
+    ]), blushMat);
+  } else {
+    // CUSTOMER BEAR — Honey bear guest with cozy sage cardigan & round ears
+    const honeyFur = createMat(doc, 'HoneyFur', '#c68b59', 0.72, 0.02);
+    const honeyCream = createMat(doc, 'HoneyCream', '#faedcd', 0.72, 0.02);
+    const cardiganMat = createMat(doc, 'BearCardigan', '#52b788', 0.68, 0.02);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.092, 0.135, 0.1, 8, 10, -0.115, 0.135, 0.01, 5),
+      buildEllipsoid(0.092, 0.135, 0.1, 8, 10, 0.115, 0.135, 0.01, 6),
+      buildEllipsoid(0.27, 0.25, 0.25, 10, 14, 0, 0.96, 0, 2),
+      buildEllipsoid(0.085, 0.085, 0.06, 8, 10, -0.2, 1.16, 0, 2),
+      buildEllipsoid(0.085, 0.085, 0.06, 8, 10, 0.2, 1.16, 0, 2),
+      buildEllipsoid(0.075, 0.075, 0.075, 8, 8, 0, 0.36, -0.24, 7),
+    ]), honeyFur);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.26, 0.28, 0.23, 10, 12, 0, 0.5, 0, 1),
+      buildEllipsoid(0.082, 0.15, 0.082, 8, 10, -0.26, 0.54, 0.02, 3),
+      buildEllipsoid(0.082, 0.15, 0.082, 8, 10, 0.26, 0.54, 0.02, 4),
+    ]), cardiganMat);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.11, 0.08, 0.08, 8, 10, 0, 0.91, 0.22, 2),
+      buildEllipsoid(0.13, 0.16, 0.08, 8, 10, 0, 0.5, 0.17, 1),
+    ]), honeyCream);
+
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.032, 0.036, 0.022, 8, 8, -0.095, 1.0, 0.23, 2),
+      buildEllipsoid(0.032, 0.036, 0.022, 8, 8, 0.095, 1.0, 0.23, 2),
+      buildEllipsoid(0.04, 0.028, 0.028, 6, 8, 0, 0.945, 0.28, 2),
+    ]), eyeMat);
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.045, 0.026, 0.02, 6, 8, -0.155, 0.91, 0.21, 2),
+      buildEllipsoid(0.045, 0.026, 0.02, 6, 8, 0.155, 0.91, 0.21, 2),
+    ]), blushMat);
   }
 
   const meshNode = doc.createNode(`Character_${kind}`).setMesh(mesh).setSkin(skin);
@@ -1010,6 +1178,104 @@ function buildMarketPantryShelf() {
   return doc;
 }
 
+/* ============================================================================
+ * 4. RESTAURANT BISTRO TABLE & SCULPTED COOKED SERVICE DISHES
+ * ============================================================================ */
+function buildRestaurantTableDocument() {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const scene = doc.createScene('Scene');
+  const mesh = doc.createMesh('RestaurantTableMesh');
+
+  const oakMat = createMat(doc, 'BistroOak', '#a47148', 0.68, 0.04);
+  const darkIron = createMat(doc, 'BistroIron', '#3c3f46', 0.45, 0.55);
+  const clothCream = createMat(doc, 'TableCloth', '#fff8ee', 0.72, 0.02);
+  const runnerCoral = createMat(doc, 'TableRunner', '#e07a5f', 0.68, 0.02);
+  const vaseMat = createMat(doc, 'MiniVase', '#52b788', 0.4, 0.06);
+  const flowerMat = createMat(doc, 'FlowerYellow', '#f4d35e', 0.55, 0.02);
+
+  // Pedestal base strictly resting at y = 0.00
+  addPrimitive(doc, buffer, mesh, mergeGeoms([
+    buildBox(0.46, 0.04, 0.46, 0, 0.02, 0),
+    buildCylinder(0.055, 0.065, 0.68, 10, 0, 0.38, 0),
+  ]), darkIron);
+
+  // Warm square bistro tabletop (0.86m x 0.86m, top at y = 0.76)
+  addPrimitive(doc, buffer, mesh, buildBox(0.86, 0.05, 0.86, 0, 0.735, 0), oakMat);
+  // Crisp cream tablecloth drape + coral center runner
+  addPrimitive(doc, buffer, mesh, buildBox(0.88, 0.025, 0.88, 0, 0.765, 0), clothCream);
+  addPrimitive(doc, buffer, mesh, buildBox(0.28, 0.014, 0.89, 0, 0.778, 0), runnerCoral);
+
+  // Tiny flower centerpiece tucked on table edge so center stays open for cooked dish!
+  addPrimitive(doc, buffer, mesh, buildCylinder(0.036, 0.042, 0.1, 8, -0.28, 0.825, -0.26), vaseMat);
+  addPrimitive(doc, buffer, mesh, buildEllipsoid(0.048, 0.038, 0.048, 6, 8, -0.28, 0.9, -0.26), flowerMat);
+
+  scene.addChild(doc.createNode('RestaurantTable').setMesh(mesh));
+  return doc;
+}
+
+function buildCookedDishDocument(dishId) {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const scene = doc.createScene('Scene');
+  const mesh = doc.createMesh(`Dish_${dishId}`);
+
+  const plateWhite = createMat(doc, 'DishPlate', '#fffdf8', 0.25, 0.06);
+  const copperMat = createMat(doc, 'CopperPan', '#c96f44', 0.28, 0.72);
+  const brassMat = createMat(doc, 'BrassHandle', '#e9c46a', 0.3, 0.78);
+
+  if (dishId === 'menemen') {
+    // Copper sahan skillet with rich tomato-egg-pepper menemen!
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildCylinder(0.2, 0.17, 0.06, 16, 0, 0.03, 0),
+    ]), copperMat);
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildBox(0.06, 0.02, 0.03, -0.21, 0.055, 0),
+      buildBox(0.06, 0.02, 0.03, 0.21, 0.055, 0),
+    ]), brassMat);
+    // Warm golden-orange egg & tomato base
+    addPrimitive(doc, buffer, mesh, buildCylinder(0.175, 0.16, 0.025, 14, 0, 0.062, 0), createMat(doc, 'MenemenBase', '#f4a261', 0.45, 0.03));
+    // Tomato chunks, green pepper bits & egg yolk swirl
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.045, 0.022, 0.045, 6, 8, -0.06, 0.08, 0.04),
+      buildEllipsoid(0.04, 0.02, 0.04, 6, 8, 0.07, 0.08, -0.04),
+    ]), createMat(doc, 'MenemenTom', '#e63946', 0.4, 0.03));
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildBox(0.038, 0.018, 0.024, 0.04, 0.082, 0.06),
+      buildBox(0.035, 0.018, 0.022, -0.05, 0.082, -0.06),
+    ]), createMat(doc, 'MenemenPep', '#2d6a4f', 0.5, 0.02));
+    addPrimitive(doc, buffer, mesh, buildEllipsoid(0.042, 0.02, 0.042, 8, 8, 0, 0.082, 0), createMat(doc, 'YolkGold', '#ffbe0b', 0.3, 0.04));
+  } else if (dishId === 'mantarli_makarna') {
+    // Deep ceramic bowl with creamy mushroom pasta!
+    addPrimitive(doc, buffer, mesh, buildCylinder(0.21, 0.14, 0.075, 16, 0, 0.0375, 0), plateWhite);
+    addPrimitive(doc, buffer, mesh, buildEllipsoid(0.165, 0.055, 0.165, 8, 12, 0, 0.075, 0), createMat(doc, 'PastaCream', '#f7e5b7', 0.48, 0.03));
+    // Sculpted mushroom slices & green herbs on top
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.042, 0.018, 0.032, 6, 8, -0.06, 0.125, 0.03),
+      buildEllipsoid(0.042, 0.018, 0.032, 6, 8, 0.06, 0.125, -0.04),
+      buildEllipsoid(0.038, 0.018, 0.03, 6, 8, 0.01, 0.132, 0.06),
+    ]), createMat(doc, 'MushSlice', '#9c6644', 0.65, 0.02));
+    addPrimitive(doc, buffer, mesh, buildEllipsoid(0.028, 0.015, 0.028, 6, 6, 0, 0.138, 0), createMat(doc, 'HerbGreen', '#40916c', 0.55, 0.02));
+  } else {
+    // Stacked golden pancakes with butter pat & fresh strawberries!
+    addPrimitive(doc, buffer, mesh, buildCylinder(0.21, 0.17, 0.028, 16, 0, 0.014, 0), plateWhite);
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildCylinder(0.14, 0.14, 0.024, 14, 0, 0.042, 0),
+      buildCylinder(0.135, 0.135, 0.024, 14, 0.005, 0.068, -0.004),
+      buildCylinder(0.13, 0.13, 0.024, 14, -0.004, 0.094, 0.005),
+    ]), createMat(doc, 'PancakeGold', '#dda15e', 0.65, 0.02));
+    addPrimitive(doc, buffer, mesh, buildBox(0.05, 0.022, 0.05, 0, 0.118, 0), createMat(doc, 'ButterPat', '#fff3b0', 0.35, 0.03));
+    addPrimitive(doc, buffer, mesh, mergeGeoms([
+      buildEllipsoid(0.034, 0.026, 0.034, 6, 8, -0.065, 0.118, 0.045),
+      buildEllipsoid(0.034, 0.026, 0.034, 6, 8, 0.065, 0.118, -0.035),
+      buildEllipsoid(0.03, 0.024, 0.03, 6, 8, 0.045, 0.118, 0.06),
+    ]), createMat(doc, 'BerryTop', '#d62828', 0.38, 0.05));
+  }
+
+  scene.addChild(doc.createNode(`DishNode_${dishId}`).setMesh(mesh));
+  return doc;
+}
+
 async function main() {
   const io = new NodeIO()
     .registerExtensions([KHRDracoMeshCompression])
@@ -1042,6 +1308,15 @@ async function main() {
     { file: 'market_produce.glb', build: buildMarketProduceStall },
     { file: 'market_dairy.glb', build: buildMarketDairyChiller },
     { file: 'market_pantry.glb', build: buildMarketPantryShelf },
+    // Restaurant NPCs (Waiter + 3 Guests), Bistro Table & 3 Cooked Service Dishes
+    { file: 'waiter.glb', build: () => buildRiggedCharacter('waiter') },
+    { file: 'cust_fox.glb', build: () => buildRiggedCharacter('cust_fox') },
+    { file: 'cust_bunny.glb', build: () => buildRiggedCharacter('cust_bunny') },
+    { file: 'cust_bear.glb', build: () => buildRiggedCharacter('cust_bear') },
+    { file: 'restaurant_table.glb', build: buildRestaurantTableDocument },
+    { file: 'dish_menemen.glb', build: () => buildCookedDishDocument('menemen') },
+    { file: 'dish_mantarli_makarna.glb', build: () => buildCookedDishDocument('mantarli_makarna') },
+    { file: 'dish_pankek.glb', build: () => buildCookedDishDocument('pankek') },
   ];
 
   for (const job of jobs) {

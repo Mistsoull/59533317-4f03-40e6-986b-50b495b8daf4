@@ -43,6 +43,8 @@ describe('stationRules', () => {
   it('detects economic soft-lock so pantry support triggers only when truly stuck', () => {
     expect(needsPantrySupport(10, {}, RECIPE_LIST)).toBe(true);
     expect(needsPantrySupport(50, {}, RECIPE_LIST)).toBe(false);
+    // Already cooked dish can be served or sold via sell_cooked_dish -> NOT soft-locked
+    expect(needsPantrySupport(10, { dish_menemen: 1 }, RECIPE_LIST)).toBe(false);
     expect(
       needsPantrySupport(
         10,

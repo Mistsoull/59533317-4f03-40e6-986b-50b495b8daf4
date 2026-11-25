@@ -6,7 +6,7 @@ import type { RoomId } from '../config/kitchenLayout';
 
 /**
  * Dual-mode camera:
- *  - Kitchen: cozy isometric OrthographicCamera
+ *  - Kitchen & Restaurant: cozy isometric OrthographicCamera
  *  - Market: full-screen enclosed interior PerspectiveCamera
  */
 export function IsometricCamera({ room }: { room: RoomId }) {
@@ -19,7 +19,7 @@ export function IsometricCamera({ room }: { room: RoomId }) {
   const marketFov = aspect < 1.35 ? 48 : aspect > 1.95 ? 36 : 42;
 
   useEffect(() => {
-    if (room === 'kitchen' && orthoRef.current) {
+    if ((room === 'kitchen' || room === 'restaurant') && orthoRef.current) {
       orthoRef.current.lookAt(0, 0.72, -0.22);
       orthoRef.current.updateProjectionMatrix();
     } else if (room === 'market' && perspRef.current) {

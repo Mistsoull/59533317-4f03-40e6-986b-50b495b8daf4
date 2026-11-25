@@ -1,14 +1,26 @@
 import type { CharacterId } from '../../config/characters';
+import { COOKED_ITEMS } from '../../config/ingredients';
 import { PROFILES, type ProfileId } from '../../config/profiles';
-import type { RecipeId } from '../../config/recipes';
+import { RECIPES, type RecipeId } from '../../config/recipes';
 import type { StationId } from '../../config/kitchenLayout';
-import type { HomeSnapshot } from '../supabase/types';
+import {
+  DELIVERING_FINALIZE_SECONDS,
+  SERVER_SPAWN_COOLDOWN_SECONDS,
+  calculateServePayout,
+  evaluateOrderPatience,
+  type SpawnCandidate,
+} from '../../domain/restaurantRules';
+import type { HomeSnapshot, RestaurantOrderRow } from '../supabase/types';
 
 const STORAGE_KEY = 'cozy_kitchen_local_home_v2';
 
 function createSeedSnapshot(): HomeSnapshot {
   return {
     coins: 120,
+    restaurantOpen: false,
+    servedOrdersCount: 0,
+    serviceStreak: 0,
+    lastOrderSpawnedAt: null,
     profiles: {
       p1: {
         id: 'p1',
@@ -89,7 +101,15 @@ function createSeedSnapshot(): HomeSnapshot {
         irlNote: null,
       },
     },
+    orders: [],
   };
+}
+
+function makeOrderId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `ord_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export function readLocalHome(): HomeSnapshot {
@@ -111,6 +131,11 @@ export function readLocalHome(): HomeSnapshot {
     }
     if (!parsed.profiles.p1.characterId) parsed.profiles.p1.characterId = 'bubu';
     if (!parsed.profiles.p2.characterId) parsed.profiles.p2.characterId = 'dudu';
+    if (typeof parsed.restaurantOpen !== 'boolean') parsed.restaurantOpen = false;
+    if (typeof parsed.servedOrdersCount !== 'number') parsed.servedOrdersCount = 0;
+    if (typeof parsed.serviceStreak !== 'number') parsed.serviceStreak = 0;
+    if (parsed.lastOrderSpawnedAt === undefined) parsed.lastOrderSpawnedAt = null;
+    if (!Array.isArray(parsed.orders)) parsed.orders = [];
     return parsed;
   } catch {
     return createSeedSnapshot();
@@ -215,7 +240,8 @@ export function localBuyIngredient(
 
 export function localClaimPantrySupport(): { ok: boolean; snapshot: HomeSnapshot } {
   const snapshot = readLocalHome();
-  if (snapshot.coins >= 30) {
+  const hasCooked = COOKED_ITEMS.some((d) => (snapshot.inventory[d.id] ?? 0) > 0);
+  if (snapshot.coins >= 30 || hasCooked) {
     return { ok: false, snapshot };
   }
   snapshot.coins += 50;
@@ -248,7 +274,6 @@ export function localCompleteCook(
   profileId: ProfileId,
   recipeId: RecipeId,
   requirements: readonly { itemId: string; qty: number }[],
-  rewardCoins: number,
 ): { ok: boolean; errorCode?: string; snapshot: HomeSnapshot } {
   const snapshot = readLocalHome();
   for (const req of requirements) {
@@ -259,16 +284,220 @@ export function localCompleteCook(
   for (const req of requirements) {
     snapshot.inventory[req.itemId] = (snapshot.inventory[req.itemId] ?? 0) - req.qty;
   }
-  snapshot.coins += rewardCoins;
+  const cookedItemId = RECIPES[recipeId].cookedItemId;
+  snapshot.inventory[cookedItemId] = (snapshot.inventory[cookedItemId] ?? 0) + 1;
   snapshot.recipes[recipeId].inGameCookCount += 1;
   const st = snapshot.stations.stove;
   st.lockedBy = null;
   st.lockExpiresAt = null;
   st.status = 'ready';
   st.activeRecipeId = recipeId;
-  st.stationPayload = { lastCooked: recipeId, by: profileId, at: new Date().toISOString() };
+  st.stationPayload = {
+    lastCooked: recipeId,
+    cookedItemId,
+    by: profileId,
+    at: new Date().toISOString(),
+  };
   writeLocalHome(snapshot);
   return { ok: true, snapshot };
+}
+
+export function localSellCookedDish(
+  cookedItemId: string,
+  qty: number,
+  unitPrice: number,
+): { ok: boolean; errorCode?: string; snapshot: HomeSnapshot } {
+  const snapshot = readLocalHome();
+  const have = snapshot.inventory[cookedItemId] ?? 0;
+  if (qty <= 0 || unitPrice <= 0 || have < qty) {
+    return { ok: false, errorCode: 'MISSING_COOKED_DISH', snapshot };
+  }
+  snapshot.inventory[cookedItemId] = have - qty;
+  snapshot.coins += qty * unitPrice;
+  writeLocalHome(snapshot);
+  return { ok: true, snapshot };
+}
+
+export function localSetRestaurantOpen(open: boolean): HomeSnapshot {
+  const snapshot = readLocalHome();
+  snapshot.restaurantOpen = open;
+  if (open) {
+    snapshot.lastOrderSpawnedAt = null;
+  }
+  writeLocalHome(snapshot);
+  return snapshot;
+}
+
+export function localExpireRestaurantOrders(): {
+  expiredCount: number;
+  finalizedCount: number;
+  snapshot: HomeSnapshot;
+} {
+  const snapshot = readLocalHome();
+  const now = Date.now();
+  let expiredCount = 0;
+  let finalizedCount = 0;
+  const kept: RestaurantOrderRow[] = [];
+
+  for (const order of snapshot.orders) {
+    if (order.status === 'delivering') {
+      const delMs = order.deliveredAt ? new Date(order.deliveredAt).getTime() : 0;
+      if (delMs > 0 && now - delMs >= DELIVERING_FINALIZE_SECONDS * 1000) {
+        finalizedCount += 1;
+        continue;
+      }
+      kept.push(order);
+    } else if (order.status === 'waiting') {
+      if (new Date(order.expiresAt).getTime() <= now) {
+        expiredCount += 1;
+        continue;
+      }
+      kept.push(order);
+    }
+  }
+
+  if (expiredCount > 0) {
+    snapshot.serviceStreak = 0;
+  }
+
+  if (expiredCount > 0 || finalizedCount > 0 || kept.length !== snapshot.orders.length) {
+    snapshot.orders = kept;
+    writeLocalHome(snapshot);
+  }
+
+  return { expiredCount, finalizedCount, snapshot };
+}
+
+export function localSpawnRestaurantOrder(
+  candidate: SpawnCandidate,
+  maxActiveOrders: number,
+): { ok: boolean; order?: RestaurantOrderRow; errorCode?: string; snapshot: HomeSnapshot } {
+  const cleaned = localExpireRestaurantOrders();
+  const snapshot = cleaned.snapshot;
+  if (!snapshot.restaurantOpen) {
+    return { ok: false, errorCode: 'RESTAURANT_CLOSED', snapshot };
+  }
+
+  const now = Date.now();
+  if (
+    snapshot.lastOrderSpawnedAt &&
+    now - new Date(snapshot.lastOrderSpawnedAt).getTime() < SERVER_SPAWN_COOLDOWN_SECONDS * 1000
+  ) {
+    return { ok: false, errorCode: 'COOLDOWN', snapshot };
+  }
+
+  const active = snapshot.orders.filter(
+    (o) => o.status === 'waiting' || o.status === 'delivering',
+  );
+  if (active.length >= Math.min(3, Math.max(1, maxActiveOrders))) {
+    return { ok: false, errorCode: 'TABLE_LIMIT', snapshot };
+  }
+  if (active.some((o) => o.tableId === candidate.tableId)) {
+    return { ok: false, errorCode: 'TABLE_OCCUPIED', snapshot };
+  }
+
+  const newOrder: RestaurantOrderRow = {
+    id: makeOrderId(),
+    tableId: candidate.tableId,
+    recipeId: candidate.recipeId,
+    difficulty: candidate.difficulty,
+    customerName: candidate.customerName,
+    customerAvatar: candidate.customerAvatar,
+    status: 'waiting',
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + candidate.durationSeconds * 1000).toISOString(),
+    deliveredAt: null,
+    servedBy: null,
+    rewardCoins: 0,
+    tipCoins: 0,
+  };
+
+  snapshot.orders = [...active, newOrder];
+  snapshot.lastOrderSpawnedAt = new Date(now).toISOString();
+  writeLocalHome(snapshot);
+  return { ok: true, order: newOrder, snapshot };
+}
+
+export function localServeRestaurantOrder(
+  profileId: ProfileId,
+  orderId: string,
+): {
+  ok: boolean;
+  rewardCoins: number;
+  tipCoins: number;
+  errorCode?: string;
+  snapshot: HomeSnapshot;
+} {
+  const snapshot = readLocalHome();
+  const now = Date.now();
+  const idx = snapshot.orders.findIndex((o) => o.id === orderId);
+  if (idx === -1) {
+    return { ok: false, rewardCoins: 0, tipCoins: 0, errorCode: 'ORDER_NOT_FOUND', snapshot };
+  }
+
+  const order = snapshot.orders[idx];
+  if (order.status !== 'waiting') {
+    return {
+      ok: false,
+      rewardCoins: 0,
+      tipCoins: 0,
+      errorCode: 'ORDER_ALREADY_HANDLED',
+      snapshot,
+    };
+  }
+
+  const patience = evaluateOrderPatience(order.createdAt, order.expiresAt, now);
+  if (patience.isExpired) {
+    snapshot.orders = snapshot.orders.filter((o) => o.id !== orderId);
+    snapshot.serviceStreak = 0;
+    writeLocalHome(snapshot);
+    return { ok: false, rewardCoins: 0, tipCoins: 0, errorCode: 'ORDER_EXPIRED', snapshot };
+  }
+
+  const recipe = RECIPES[order.recipeId];
+  const have = snapshot.inventory[recipe.cookedItemId] ?? 0;
+  if (have < 1) {
+    return {
+      ok: false,
+      rewardCoins: 0,
+      tipCoins: 0,
+      errorCode: 'MISSING_COOKED_DISH',
+      snapshot,
+    };
+  }
+
+  const payout = calculateServePayout(recipe, patience.ratio);
+  snapshot.inventory[recipe.cookedItemId] = have - 1;
+  snapshot.coins += payout.totalCoins;
+  snapshot.servedOrdersCount += 1;
+  snapshot.serviceStreak += 1;
+
+  snapshot.orders[idx] = {
+    ...order,
+    status: 'delivering',
+    deliveredAt: new Date(now).toISOString(),
+    servedBy: profileId,
+    rewardCoins: payout.rewardCoins,
+    tipCoins: payout.tipCoins,
+  };
+  writeLocalHome(snapshot);
+
+  return {
+    ok: true,
+    rewardCoins: payout.rewardCoins,
+    tipCoins: payout.tipCoins,
+    snapshot,
+  };
+}
+
+export function localCompleteRestaurantOrder(orderId: string): HomeSnapshot {
+  const snapshot = readLocalHome();
+  const next = snapshot.orders.filter((o) => o.id !== orderId);
+  if (next.length !== snapshot.orders.length) {
+    snapshot.orders = next;
+    writeLocalHome(snapshot);
+  }
+  return snapshot;
 }
 
 export function localConfirmRecipeIrl(

@@ -1,4 +1,4 @@
-export type RoomId = 'kitchen' | 'market';
+export type RoomId = 'kitchen' | 'market' | 'restaurant';
 export type StationId = 'fridge' | 'cutting_board' | 'stove';
 
 export interface Aabb2D {
@@ -82,6 +82,14 @@ export const KITCHEN_OBSTACLES: readonly Aabb2D[] = [
     minZ: 0.55,
     maxZ: 1.45,
   },
+  // Sağ kenar Servis Bankosu / Zili (Buzdolabı z=-2.42 & Restoran Kapısı z=2.05'ten tamamen ayrı!)
+  {
+    id: 'kitchen_service_pass',
+    minX: 3.35,
+    maxX: 4.0,
+    minZ: -0.2,
+    maxZ: 0.95,
+  },
 ];
 
 export const KITCHEN_STATIONS: Record<StationId, StationLayoutDef> = {
@@ -128,6 +136,32 @@ export const KITCHEN_TO_MARKET_DOOR: RoomDoorDef = {
   position: [-3.95, 0, 2.0],
   interactionPoint: [-3.15, 2.0],
   facingAngle: -Math.PI / 2,
+};
+
+export const KITCHEN_TO_RESTAURANT_DOOR: RoomDoorDef = {
+  targetRoom: 'restaurant',
+  label: 'Restorana Git',
+  icon: '🍽️',
+  position: [3.95, 0, 2.05],
+  interactionPoint: [3.15, 2.05],
+  facingAngle: Math.PI / 2,
+};
+
+export interface ServicePassDef {
+  position: readonly [number, number, number];
+  interactionPoint: readonly [number, number];
+  facingAngle: number;
+  hitboxSize: readonly [number, number, number];
+}
+
+/**
+ * Kitchen-side Service Pass Counter & Bell (clear of Fridge at z=-2.42 and Restaurant Door at z=2.05).
+ */
+export const KITCHEN_SERVICE_PASS: ServicePassDef = {
+  position: [3.68, 0, 0.38],
+  interactionPoint: [2.75, 0.38],
+  facingAngle: Math.PI / 2,
+  hitboxSize: [0.85, 1.3, 1.25],
 };
 
 export const STATION_LIST: readonly StationLayoutDef[] = [

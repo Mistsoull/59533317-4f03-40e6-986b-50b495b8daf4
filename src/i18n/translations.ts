@@ -66,9 +66,43 @@ interface TranslationBundle {
 
   // Rooms & Doors
   goToMarketDoor: string;
+  goToRestaurantDoor: string;
   backToKitchenDoor: string;
   enteredMarketToast: string;
+  enteredRestaurantToast: string;
   enteredKitchenToast: string;
+
+  // Restaurant, Orders, Waiter & Service Pass
+  waiterLabel: string;
+  waiterDeliveringShort: string;
+  servicePassLabel: string;
+  servicePassTitle: string;
+  servicePassSubtitle: string;
+  restaurantOpenBadge: string;
+  restaurantClosedBadge: string;
+  openRestaurantBtn: string;
+  closeRestaurantBtn: string;
+  restaurantOpenedToast: string;
+  restaurantClosedToast: string;
+  tableLabel: (num: number) => string;
+  tableShort: (num: number) => string;
+  difficultyLabels: Record<'easy' | 'medium' | 'hard', string>;
+  sendToWaiterBtn: string;
+  needCookedBtn: string;
+  orderDispatchedToast: (tableNum: number, dishName: string, totalCoins: number, tipCoins: number) => string;
+  orderExpiredToast: string;
+  orderAlreadyHandledToast: string;
+  noActiveOrdersHint: string;
+  restaurantClosedHint: string;
+  waitingOrdersHeading: string;
+  readyDishesHeading: string;
+  readyCountLabel: (n: number) => string;
+  sellTakeoutBtn: (price: number) => string;
+  soldTakeoutToast: (dishName: string, coins: number) => string;
+  servedStatsLabel: (served: number, streak: number) => string;
+  ordersWaitingBadge: (n: number) => string;
+  cookedReadyToast: (icon: string, name: string) => string;
+  cookedInStockShort: (n: number) => string;
 
   // Stations & Locks
   stations: Record<StationId, { label: string; subtitle: string }>;
@@ -212,9 +246,49 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     signOutBtn: 'Çıkış Yap / Profil Değiştir',
 
     goToMarketDoor: 'Markete Git',
+    goToRestaurantDoor: 'Restorana Git',
     backToKitchenDoor: 'Mutfağa Dön',
     enteredMarketToast: '🛒 Mahalle Marketine geldin!',
+    enteredRestaurantToast: '🍽️ Restoran salonuna geçtin!',
     enteredKitchenToast: '🏠 Mutfağa döndün!',
+
+    waiterLabel: 'Garson',
+    waiterDeliveringShort: 'Garson yolda',
+    servicePassLabel: 'Servis Zili',
+    servicePassTitle: 'Servis Bankosu & Garson',
+    servicePassSubtitle: 'Hazır tabakları garsona ver veya fazla tabakları paket sat.',
+    restaurantOpenBadge: 'Servis Açık',
+    restaurantClosedBadge: 'Restoran Kapalı',
+    openRestaurantBtn: 'Servisi Aç',
+    closeRestaurantBtn: 'Mola Ver',
+    restaurantOpenedToast: '🔔 Restoran açıldı! Müşteriler birazdan gelmeye başlayacak.',
+    restaurantClosedToast: '☕ Restoran mola modunda. Yeni müşteri gelmeyecek.',
+    tableLabel: (num) => `Masa ${num}`,
+    tableShort: (num) => `M${num}`,
+    difficultyLabels: {
+      easy: 'Kolay',
+      medium: 'Orta',
+      hard: 'Zor',
+    },
+    sendToWaiterBtn: 'Hazır / Gönder',
+    needCookedBtn: 'Pişir',
+    orderDispatchedToast: (tableNum, dishName, totalCoins, tipCoins) =>
+      tipCoins > 0
+        ? `🤵 Garson Masa ${tableNum} için ${dishName} götürüyor! +${totalCoins} 🪙 (+${tipCoins} bahşiş)`
+        : `🤵 Garson Masa ${tableNum} için ${dishName} götürüyor! +${totalCoins} 🪙`,
+    orderExpiredToast: '😔 Bir müşteri beklemekten yorulup masadan kalktı.',
+    orderAlreadyHandledToast: 'Bu sipariş az önce teslim edildi veya süresi doldu.',
+    noActiveOrdersHint: 'Şu an bekleyen müşteri yok — yeni misafir kapıda!',
+    restaurantClosedHint: 'Müşteri kabul etmek için "Servisi Aç" butonuna dokun.',
+    waitingOrdersHeading: 'Bekleyen Müşteri Siparişleri',
+    readyDishesHeading: 'Hazır Tabaklar & Paket Satış',
+    readyCountLabel: (n) => `Hazır: ×${n}`,
+    sellTakeoutBtn: (price) => `Paket Sat · +🪙 ${price}`,
+    soldTakeoutToast: (dishName, coins) => `📦 ${dishName} paket satıldı! +${coins} 🪙`,
+    servedStatsLabel: (served, streak) => `Teslim: ${served} · Seri: 🔥 ${streak}`,
+    ordersWaitingBadge: (n) => `🔔 ${n} Sipariş`,
+    cookedReadyToast: (icon, name) => `${icon} ${name} hazır! Sipariş fişinden garsona gönderebilirsin.`,
+    cookedInStockShort: (n) => `Hazır tabak: ×${n}`,
 
     stations: {
       fridge: { label: 'Buzdolabı', subtitle: 'Ortak Ev Stoğu' },
@@ -326,6 +400,9 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
       biber_dogranmis: 'Doğranmış Biber',
       mantar_dilim: 'Dilimlenmiş Mantar',
       cilek_dilim: 'Dilimlenmiş Çilek',
+      dish_menemen: 'Hazır Menemen',
+      dish_mantarli_makarna: 'Hazır Mantarlı Makarna',
+      dish_pankek: 'Hazır Çilekli Pankek',
     },
 
     recipes: {
@@ -456,9 +533,49 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     signOutBtn: 'Abmelden / Profil wechseln',
 
     goToMarketDoor: 'Zum Markt',
+    goToRestaurantDoor: 'Zum Restaurant',
     backToKitchenDoor: 'Zur Küche',
     enteredMarketToast: '🛒 Willkommen im Nachbarschaftsmarkt!',
+    enteredRestaurantToast: '🍽️ Im Restaurant-Gastraum!',
     enteredKitchenToast: '🏠 Zurück in der Küche!',
+
+    waiterLabel: 'Kellner',
+    waiterDeliveringShort: 'Kellner unterwegs',
+    servicePassLabel: 'Serviceglocke',
+    servicePassTitle: 'Ausgabe & Kellner',
+    servicePassSubtitle: 'Fertige Gerichte an den Kellner übergeben oder außer Haus verkaufen.',
+    restaurantOpenBadge: 'Geöffnet',
+    restaurantClosedBadge: 'Geschlossen',
+    openRestaurantBtn: 'Öffnen',
+    closeRestaurantBtn: 'Pause',
+    restaurantOpenedToast: '🔔 Restaurant geöffnet! Gleich kommen die ersten Gäste.',
+    restaurantClosedToast: '☕ Restaurant in Pause. Es kommen keine neuen Gäste.',
+    tableLabel: (num) => `Tisch ${num}`,
+    tableShort: (num) => `T${num}`,
+    difficultyLabels: {
+      easy: 'Leicht',
+      medium: 'Mittel',
+      hard: 'Schwer',
+    },
+    sendToWaiterBtn: 'Fertig / Senden',
+    needCookedBtn: 'Kochen',
+    orderDispatchedToast: (tableNum, dishName, totalCoins, tipCoins) =>
+      tipCoins > 0
+        ? `🤵 Kellner bringt ${dishName} an Tisch ${tableNum}! +${totalCoins} 🪙 (+${tipCoins} Trinkgeld)`
+        : `🤵 Kellner bringt ${dishName} an Tisch ${tableNum}! +${totalCoins} 🪙`,
+    orderExpiredToast: '😔 Ein Gast hat zu lange gewartet und ist gegangen.',
+    orderAlreadyHandledToast: 'Diese Bestellung wurde bereits erledigt oder ist abgelaufen.',
+    noActiveOrdersHint: 'Gerade keine offenen Bestellungen — Gäste sind gleich da!',
+    restaurantClosedHint: 'Tippe auf „Öffnen“, um Gäste ins Restaurant einzuladen.',
+    waitingOrdersHeading: 'Offene Gästebestellungen',
+    readyDishesHeading: 'Fertige Teller & Verkauf außer Haus',
+    readyCountLabel: (n) => `Fertig: ×${n}`,
+    sellTakeoutBtn: (price) => `Verkaufen · +🪙 ${price}`,
+    soldTakeoutToast: (dishName, coins) => `📦 ${dishName} verkauft! +${coins} 🪙`,
+    servedStatsLabel: (served, streak) => `Serviert: ${served} · Serie: 🔥 ${streak}`,
+    ordersWaitingBadge: (n) => `🔔 ${n} offen`,
+    cookedReadyToast: (icon, name) => `${icon} ${name} ist fertig! Sende es über die Bestellleiste an den Kellner.`,
+    cookedInStockShort: (n) => `Fertige Teller: ×${n}`,
 
     stations: {
       fridge: { label: 'Kühlschrank', subtitle: 'Gemeinsamer Vorrat' },
@@ -570,6 +687,9 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
       biber_dogranmis: 'Geschnittene Paprika',
       mantar_dilim: 'Champignonscheiben',
       cilek_dilim: 'Erdbeerscheiben',
+      dish_menemen: 'Fertiges Menemen',
+      dish_mantarli_makarna: 'Fertige Pilzpasta',
+      dish_pankek: 'Fertige Pancakes',
     },
 
     recipes: {

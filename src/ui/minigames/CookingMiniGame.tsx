@@ -26,6 +26,7 @@ export function CookingMiniGame({
   onClose,
 }: CookingMiniGameProps) {
   const inventory = useGameStore((s) => s.inventory);
+  const orders = useGameStore((s) => s.orders);
   const pushToast = useGameStore((s) => s.pushToast);
   const lang = useLanguageStore((s) => s.lang);
   const t = getTranslations(lang);
@@ -78,12 +79,11 @@ export function CookingMiniGame({
       const curT = getTranslations(useLanguageStore.getState().lang);
       if (res.ok) {
         kitchenAudio.playSuccess();
-        kitchenAudio.playCoin();
+        kitchenAudio.playBell();
         pushToast(
-          curT.cookedToast(
+          curT.cookedReadyToast(
             selectedRecipe.icon,
             curT.recipes[selectedRecipe.id].name,
-            selectedRecipe.rewardCoins,
           ),
           'success',
         );
@@ -168,23 +168,52 @@ export function CookingMiniGame({
           <div className="grid grid-cols-3 gap-3">
             {RECIPE_LIST.map((recipe) => {
               const ready = canCookRecipe(recipe, inventory);
+              const waitingCount = orders.filter(
+                (o) => o.status === 'waiting' && o.recipeId === recipe.id,
+              ).length;
+              const cookedHave = inventory[recipe.cookedItemId] ?? 0;
+              const diffColor =
+                recipe.difficulty === 'easy'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-200'
+                  : recipe.difficulty === 'medium'
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-200'
+                    : 'bg-rose-500/15 text-rose-700 dark:text-rose-200';
               return (
                 <div
                   key={recipe.id}
-                  className="ui-surface flex flex-col justify-between gap-2.5 rounded-2xl p-3"
+                  className={`ui-surface flex flex-col justify-between gap-2.5 rounded-2xl p-3 ${
+                    waitingCount > 0 ? 'ring-2 ring-amber-500/60' : ''
+                  }`}
                 >
                   <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-1">
                       <span className="text-2xl" aria-hidden="true">
                         {recipe.icon}
                       </span>
-                      <span className="rounded-lg bg-amber-500/15 px-2 py-0.5 text-[11px] font-extrabold text-amber-700 dark:text-amber-200">
-                        +🪙 {recipe.rewardCoins}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className={`rounded-lg px-1.5 py-0.5 text-[10px] font-extrabold ${diffColor}`}>
+                          {t.difficultyLabels[recipe.difficulty]} · {recipe.baseDeliverySeconds}s
+                        </span>
+                        <span className="rounded-lg bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-700 dark:text-amber-200">
+                          🪙 {recipe.rewardCoins}
+                        </span>
+                      </div>
                     </div>
-                    <h2 className="mt-1.5 text-sm font-extrabold">
-                      {t.recipes[recipe.id].name}
-                    </h2>
+                    <div className="mt-1.5 flex items-center justify-between gap-1">
+                      <h2 className="text-sm font-extrabold leading-tight">
+                        {t.recipes[recipe.id].name}
+                      </h2>
+                      {waitingCount > 0 && (
+                        <span className="animate-pulse rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white whitespace-nowrap">
+                          {t.ordersWaitingBadge(waitingCount)}
+                        </span>
+                      )}
+                    </div>
+                    {cookedHave > 0 && (
+                      <p className="mt-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                        {t.cookedInStockShort(cookedHave)}
+                      </p>
+                    )}
                     <div className="mt-2 flex flex-wrap gap-1">
                       {recipe.requirements.map((req) => {
                         const ing = INGREDIENTS[req.itemId];

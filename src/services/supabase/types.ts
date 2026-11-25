@@ -1,7 +1,9 @@
 import type { CharacterId } from '../../config/characters';
 import type { ProfileId } from '../../config/profiles';
-import type { RecipeId } from '../../config/recipes';
+import type { RecipeDifficulty, RecipeId } from '../../config/recipes';
 import type { RoomId, StationId } from '../../config/kitchenLayout';
+import type { CustomerAvatarId, TableId } from '../../config/restaurantLayout';
+import type { OrderStatus } from '../../domain/restaurantRules';
 
 export type AnimState = 'Idle' | 'Walk' | 'Interact';
 
@@ -31,12 +33,33 @@ export interface RecipeProgressRow {
   irlNote: string | null;
 }
 
+export interface RestaurantOrderRow {
+  id: string;
+  tableId: TableId;
+  recipeId: RecipeId;
+  difficulty: RecipeDifficulty;
+  customerName: string;
+  customerAvatar: CustomerAvatarId;
+  status: OrderStatus;
+  createdAt: string;
+  expiresAt: string;
+  deliveredAt: string | null;
+  servedBy: ProfileId | null;
+  rewardCoins: number;
+  tipCoins: number;
+}
+
 export interface HomeSnapshot {
   coins: number;
+  restaurantOpen: boolean;
+  servedOrdersCount: number;
+  serviceStreak: number;
+  lastOrderSpawnedAt: string | null;
   profiles: Record<ProfileId, ProfileRow>;
   inventory: Record<string, number>;
   stations: Record<StationId, StationStateRow>;
   recipes: Record<RecipeId, RecipeProgressRow>;
+  orders: RestaurantOrderRow[];
 }
 
 export interface BroadcastPlayerPayload {

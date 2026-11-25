@@ -2,23 +2,35 @@ import { useCallback, useEffect, useState } from 'react';
 import { KITCHEN_STATIONS, type RoomId, type StationId } from './config/kitchenLayout';
 import { MARKET_SPAWN, type MarketStallId } from './config/marketLayout';
 import { PROFILES, type ProfileId } from './config/profiles';
+import { RESTAURANT_SPAWN } from './config/restaurantLayout';
 import { kitchenAudio } from './domain/audio';
+import {
+  DELIVERING_FINALIZE_SECONDS,
+  SERVER_SPAWN_COOLDOWN_SECONDS,
+  computeMaxActiveTables,
+  electRestaurantHost,
+  pickNextSpawnCandidate,
+} from './domain/restaurantRules';
 import { getTranslations } from './i18n/translations';
 import { restoreAuthSession, signOutProfile } from './services/supabase/auth';
 import {
   acquireStationLock,
+  expireRestaurantOrders,
   fetchHomeSnapshot,
   heartbeatStationLock,
   releaseStationLock,
+  spawnRestaurantOrder,
 } from './services/supabase/homeRepository';
 import { kitchenRealtime } from './services/supabase/realtimeSync';
 import { playerMotionStore } from './store/playerMotionStore';
+import { restaurantMotionStore } from './store/restaurantMotionStore';
 import { useGameStore } from './store/useGameStore';
 import { useLanguageStore } from './store/useLanguageStore';
 import { useSessionStore, type BackendMode } from './store/useSessionStore';
 import { KitchenCanvas } from './scene/KitchenCanvas';
 import { ProfilePinGate } from './ui/auth/ProfilePinGate';
 import { LandscapeGuard } from './ui/guards/LandscapeGuard';
+import { OrderTicketBar } from './ui/hud/OrderTicketBar';
 import { ToastLayer } from './ui/hud/ToastLayer';
 import { TopHudBar } from './ui/hud/TopHudBar';
 import { ChoppingMiniGame } from './ui/minigames/ChoppingMiniGame';
@@ -26,6 +38,7 @@ import { CookingMiniGame } from './ui/minigames/CookingMiniGame';
 import { FridgeModal } from './ui/modals/FridgeModal';
 import { MarketModal } from './ui/modals/MarketModal';
 import { RecipeBookModal } from './ui/modals/RecipeBookModal';
+import { ServicePassModal } from './ui/modals/ServicePassModal';
 import { SettingsModal } from './ui/modals/SettingsModal';
 
 export default function App() {
@@ -73,16 +86,17 @@ export default function App() {
     };
   }, [setSession]);
 
-  // Connect persistent home + Realtime channel when signed in
+  // Connect persistent home + Realtime channel when signed in (silently cleans up expired orders on boot)
   useEffect(() => {
     if (!profileId) return;
 
     const [sx, sz] = PROFILES[profileId].spawnPosition;
     setCurrentRoom('kitchen');
     playerMotionStore.resetLocal(sx, sz, 'kitchen');
+    restaurantMotionStore.reset();
 
     let cancelled = false;
-    void fetchHomeSnapshot().then((snap) => {
+    void fetchHomeSnapshot(true).then((snap) => {
       if (cancelled) return;
       const prof = snap.profiles[profileId];
       const displayName = prof?.displayName ?? PROFILES[profileId].defaultName;
@@ -95,6 +109,91 @@ export default function App() {
       kitchenRealtime.disconnect();
     };
   }, [profileId, setCurrentRoom]);
+
+  // Deterministic Presence Host (p1 priority): drives customer spawns & expiry cleanup
+  useEffect(() => {
+    if (!profileId) return;
+
+    let running = false;
+    const tick = async () => {
+      if (running) return;
+      const session = useSessionStore.getState();
+      const onlineIds = Object.keys(session.onlineProfiles) as ProfileId[];
+      const effectiveOnline = onlineIds.includes(profileId)
+        ? onlineIds
+        : [...onlineIds, profileId];
+
+      if (!electRestaurantHost(effectiveOnline, profileId)) {
+        return;
+      }
+
+      const game = useGameStore.getState();
+      if (!game.loaded) return;
+
+      running = true;
+      try {
+        const serverNowMs = Date.now() + game.clockOffsetMs;
+
+        // 1. Expire timed-out waiting orders & finalize any stale delivering orders
+        const needsCleanup = game.orders.some((o) => {
+          if (o.status === 'waiting') {
+            return new Date(o.expiresAt).getTime() <= serverNowMs;
+          }
+          if (o.status === 'delivering' && o.deliveredAt) {
+            return (
+              serverNowMs - new Date(o.deliveredAt).getTime() >=
+              DELIVERING_FINALIZE_SECONDS * 1000
+            );
+          }
+          return false;
+        });
+
+        if (needsCleanup) {
+          const expRes = await expireRestaurantOrders();
+          if (expRes.expiredCount > 0) {
+            const curT = getTranslations(useLanguageStore.getState().lang);
+            useGameStore.getState().pushToast(curT.orderExpiredToast, 'warn');
+          }
+        }
+
+        // 2. Spawn next customer if Restaurant is OPEN, cooldown elapsed & under active table cap
+        const latestGame = useGameStore.getState();
+        if (!latestGame.restaurantOpen) return;
+
+        const cooldownElapsed =
+          !latestGame.lastOrderSpawnedAt ||
+          Date.now() + latestGame.clockOffsetMs -
+            new Date(latestGame.lastOrderSpawnedAt).getTime() >=
+            SERVER_SPAWN_COOLDOWN_SECONDS * 1000;
+
+        if (!cooldownElapsed) return;
+
+        const onlineCount = Math.max(1, effectiveOnline.length);
+        const curLang = useLanguageStore.getState().lang;
+        const candidate = pickNextSpawnCandidate(
+          latestGame.orders,
+          onlineCount,
+          curLang,
+        );
+
+        if (candidate) {
+          const maxTables = computeMaxActiveTables(onlineCount);
+          const spawnRes = await spawnRestaurantOrder(candidate, maxTables);
+          if (spawnRes.ok) {
+            kitchenAudio.playBell();
+          }
+        }
+      } finally {
+        running = false;
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void tick();
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [profileId]);
 
   // Maintain station lock TTL heartbeat (10s) and clean release on pagehide
   useEffect(() => {
@@ -132,17 +231,29 @@ export default function App() {
   const handleEnterRoom = useCallback(
     async (targetRoom: RoomId) => {
       if (!profileId) return;
+      const fromRoom = useGameStore.getState().currentRoom;
       await releaseActiveStation();
       setCurrentRoom(targetRoom);
 
-      const [sx, sz] =
-        targetRoom === 'market' ? MARKET_SPAWN[profileId] : [-2.2, 1.85];
+      const [sx, sz]: readonly [number, number] =
+        targetRoom === 'market'
+          ? MARKET_SPAWN[profileId]
+          : targetRoom === 'restaurant'
+            ? RESTAURANT_SPAWN[profileId]
+            : fromRoom === 'restaurant'
+              ? [2.75, 2.05]
+              : [-2.2, 1.85];
+
       playerMotionStore.resetLocal(sx, sz, targetRoom);
       kitchenRealtime.updatePresenceRoom(targetRoom);
       kitchenAudio.playFlip();
       const curT = getTranslations(useLanguageStore.getState().lang);
       pushToast(
-        targetRoom === 'market' ? curT.enteredMarketToast : curT.enteredKitchenToast,
+        targetRoom === 'market'
+          ? curT.enteredMarketToast
+          : targetRoom === 'restaurant'
+            ? curT.enteredRestaurantToast
+            : curT.enteredKitchenToast,
         'info',
       );
     },
@@ -190,6 +301,11 @@ export default function App() {
     [openMarketStall],
   );
 
+  const handleArriveAtServicePass = useCallback(() => {
+    kitchenAudio.playBell();
+    setActiveOverlay('service_pass');
+  }, [setActiveOverlay]);
+
   const handleSignedIn = (nextProfile: ProfileId, mode: BackendMode) => {
     setSession(nextProfile, mode);
   };
@@ -197,6 +313,7 @@ export default function App() {
   const handleSignOut = async () => {
     await releaseActiveStation();
     kitchenRealtime.disconnect();
+    restaurantMotionStore.reset();
     await signOutProfile();
     resetSession();
   };
@@ -227,10 +344,12 @@ export default function App() {
             profileId={profileId}
             onArriveAtStation={(st) => void handleArriveAtStation(st)}
             onArriveAtMarketStall={handleArriveAtMarketStall}
+            onArriveAtServicePass={handleArriveAtServicePass}
             onEnterRoom={(room) => void handleEnterRoom(room)}
           />
 
           <TopHudBar profileId={profileId} />
+          <OrderTicketBar profileId={profileId} />
           <ToastLayer />
 
           <FridgeModal
@@ -239,6 +358,11 @@ export default function App() {
           />
           <MarketModal
             open={activeOverlay === 'market_stall'}
+            onClose={() => setActiveOverlay(null)}
+          />
+          <ServicePassModal
+            open={activeOverlay === 'service_pass'}
+            profileId={profileId}
             onClose={() => setActiveOverlay(null)}
           />
           <RecipeBookModal

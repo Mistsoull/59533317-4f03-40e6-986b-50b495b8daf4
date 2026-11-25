@@ -4,8 +4,10 @@ import {
   GRID_CELL_SIZE,
   KITCHEN_BOUNDS,
   KITCHEN_OBSTACLES,
+  KITCHEN_SERVICE_PASS,
   KITCHEN_STATIONS,
   KITCHEN_TO_MARKET_DOOR,
+  KITCHEN_TO_RESTAURANT_DOOR,
   PLAYER_HALF_EXTENT,
   type RoomId,
   type StationId,
@@ -18,6 +20,13 @@ import {
   type MarketStallId,
 } from '../config/marketLayout';
 import type { ProfileId } from '../config/profiles';
+import {
+  RESTAURANT_BOUNDS,
+  RESTAURANT_OBSTACLES,
+  RESTAURANT_SERVICE_PASS,
+  RESTAURANT_TABLE_LIST,
+  RESTAURANT_TO_KITCHEN_DOOR,
+} from '../config/restaurantLayout';
 import { kitchenAudio } from '../domain/audio';
 import { buildNavGrid, findPath2D } from '../domain/pathfinding';
 import { playerMotionStore, type PendingDestination } from '../store/playerMotionStore';
@@ -26,6 +35,7 @@ import { useThemeStore } from '../store/useThemeStore';
 import { IsometricCamera } from './IsometricCamera';
 import { KitchenRoom } from './KitchenRoom';
 import { MarketRoom } from './MarketRoom';
+import { RestaurantRoom } from './RestaurantRoom';
 import { RoomDoor } from './RoomDoor';
 import { TargetMarker } from './TargetMarker';
 import { ModelSlot } from './assets/ModelSlot';
@@ -36,13 +46,18 @@ import {
 } from './assets/placeholders/StationPlaceholders';
 import { LocalPlayer } from './entities/LocalPlayer';
 import { RemotePlayer } from './entities/RemotePlayer';
+import { RestaurantGuests } from './entities/RestaurantGuests';
+import { WaiterNpc } from './entities/WaiterNpc';
 import { MarketStallInteractable } from './stations/MarketStallInteractable';
+import { RestaurantTableInteractable } from './stations/RestaurantTableInteractable';
+import { ServicePassInteractable } from './stations/ServicePassInteractable';
 import { StationInteractable } from './stations/StationInteractable';
 
 interface KitchenCanvasProps {
   profileId: ProfileId;
   onArriveAtStation: (stationId: StationId) => void;
   onArriveAtMarketStall: (stallId: MarketStallId) => void;
+  onArriveAtServicePass: () => void;
   onEnterRoom: (targetRoom: RoomId) => void;
 }
 
@@ -50,6 +65,7 @@ export function KitchenCanvas({
   profileId,
   onArriveAtStation,
   onArriveAtMarketStall,
+  onArriveAtServicePass,
   onEnterRoom,
 }: KitchenCanvasProps) {
   const currentRoom = useGameStore((s) => s.currentRoom);
@@ -80,8 +96,30 @@ export function KitchenCanvas({
     [],
   );
 
-  const activeNavGrid = currentRoom === 'kitchen' ? kitchenNavGrid : marketNavGrid;
-  const activeObstacles = currentRoom === 'kitchen' ? KITCHEN_OBSTACLES : MARKET_OBSTACLES;
+  const restaurantNavGrid = useMemo(
+    () =>
+      buildNavGrid(
+        RESTAURANT_BOUNDS,
+        GRID_CELL_SIZE,
+        PLAYER_HALF_EXTENT,
+        RESTAURANT_OBSTACLES,
+      ),
+    [],
+  );
+
+  const activeNavGrid =
+    currentRoom === 'kitchen'
+      ? kitchenNavGrid
+      : currentRoom === 'market'
+        ? marketNavGrid
+        : restaurantNavGrid;
+
+  const activeObstacles =
+    currentRoom === 'kitchen'
+      ? KITCHEN_OBSTACLES
+      : currentRoom === 'market'
+        ? MARKET_OBSTACLES
+        : RESTAURANT_OBSTACLES;
 
   const walkTo = (
     gx: number,
@@ -118,6 +156,8 @@ export function KitchenCanvas({
       onArriveAtStation(dest.stationId);
     } else if (dest.type === 'market_stall') {
       onArriveAtMarketStall(dest.stallId);
+    } else if (dest.type === 'service_pass') {
+      onArriveAtServicePass();
     } else if (dest.type === 'door') {
       onEnterRoom(dest.targetRoom);
     }
@@ -127,10 +167,14 @@ export function KitchenCanvas({
     theme === 'light'
       ? currentRoom === 'kitchen'
         ? '#f7efe3'
-        : '#e8f4ec'
+        : currentRoom === 'market'
+          ? '#e8f4ec'
+          : '#f4e8d8'
       : currentRoom === 'kitchen'
         ? '#1e1b18'
-        : '#18201c';
+        : currentRoom === 'market'
+          ? '#18201c'
+          : '#211a15';
 
   const hemiIntensity = theme === 'light' ? 1.15 : 0.85;
   const sunIntensity = theme === 'light' ? 1.45 : 1.25;
@@ -176,7 +220,7 @@ export function KitchenCanvas({
 
       <TargetMarker />
 
-      {/* Keep both rooms mounted via visibility so room transitions are instant (<1ms) with zero <Html> portal unmount issues */}
+      {/* Keep all 3 rooms mounted via visibility for instant (<1ms) switching & uninterrupted Waiter/Customer animations */}
       <group visible={currentRoom === 'kitchen'}>
         <KitchenRoom
           onTapFloor={(x, z) => {
@@ -223,6 +267,21 @@ export function KitchenCanvas({
           <ModelSlot assetId="station_fridge" placeholder={<FridgePlaceholder />} />
         </StationInteractable>
 
+        {/* Kitchen-side Service Pass & Bell (clear of Fridge and Restaurant Door) */}
+        <ServicePassInteractable
+          position={KITCHEN_SERVICE_PASS.position}
+          interactionPoint={KITCHEN_SERVICE_PASS.interactionPoint}
+          active={currentRoom === 'kitchen'}
+          onSelectPass={() =>
+            walkTo(
+              KITCHEN_SERVICE_PASS.interactionPoint[0],
+              KITCHEN_SERVICE_PASS.interactionPoint[1],
+              { type: 'service_pass' },
+              KITCHEN_SERVICE_PASS.facingAngle,
+            )
+          }
+        />
+
         <RoomDoor
           door={KITCHEN_TO_MARKET_DOOR}
           accentColor="#52b788"
@@ -233,6 +292,21 @@ export function KitchenCanvas({
               KITCHEN_TO_MARKET_DOOR.interactionPoint[1],
               { type: 'door', targetRoom: 'market' },
               KITCHEN_TO_MARKET_DOOR.facingAngle,
+            )
+          }
+        />
+
+        <RoomDoor
+          door={KITCHEN_TO_RESTAURANT_DOOR}
+          accentColor="#d97706"
+          wall="right"
+          active={currentRoom === 'kitchen'}
+          onSelectDoor={() =>
+            walkTo(
+              KITCHEN_TO_RESTAURANT_DOOR.interactionPoint[0],
+              KITCHEN_TO_RESTAURANT_DOOR.interactionPoint[1],
+              { type: 'door', targetRoom: 'restaurant' },
+              KITCHEN_TO_RESTAURANT_DOOR.facingAngle,
             )
           }
         />
@@ -273,6 +347,55 @@ export function KitchenCanvas({
               MARKET_TO_KITCHEN_DOOR.interactionPoint[1],
               { type: 'door', targetRoom: 'kitchen' },
               MARKET_TO_KITCHEN_DOOR.facingAngle,
+            )
+          }
+        />
+      </group>
+
+      <group visible={currentRoom === 'restaurant'}>
+        <RestaurantRoom
+          onTapFloor={(x, z) => {
+            if (currentRoom === 'restaurant') walkTo(x, z, null);
+          }}
+        />
+
+        {RESTAURANT_TABLE_LIST.map((table) => (
+          <RestaurantTableInteractable
+            key={table.id}
+            table={table}
+            active={currentRoom === 'restaurant'}
+          />
+        ))}
+
+        <ServicePassInteractable
+          position={RESTAURANT_SERVICE_PASS.position}
+          interactionPoint={RESTAURANT_SERVICE_PASS.interactionPoint}
+          active={currentRoom === 'restaurant'}
+          onSelectPass={() =>
+            walkTo(
+              RESTAURANT_SERVICE_PASS.interactionPoint[0],
+              RESTAURANT_SERVICE_PASS.interactionPoint[1],
+              { type: 'service_pass' },
+              RESTAURANT_SERVICE_PASS.facingAngle,
+            )
+          }
+        />
+
+        {/* Automatic 3D Waiter NPC & Walking Customer NPCs */}
+        <WaiterNpc navGrid={restaurantNavGrid} active={currentRoom === 'restaurant'} />
+        <RestaurantGuests navGrid={restaurantNavGrid} active={currentRoom === 'restaurant'} />
+
+        <RoomDoor
+          door={RESTAURANT_TO_KITCHEN_DOOR}
+          accentColor="#e07a5f"
+          wall="left"
+          active={currentRoom === 'restaurant'}
+          onSelectDoor={() =>
+            walkTo(
+              RESTAURANT_TO_KITCHEN_DOOR.interactionPoint[0],
+              RESTAURANT_TO_KITCHEN_DOOR.interactionPoint[1],
+              { type: 'door', targetRoom: 'kitchen' },
+              RESTAURANT_TO_KITCHEN_DOOR.facingAngle,
             )
           }
         />

@@ -66,7 +66,7 @@ async function main() {
     if (!hasDraco) issues.push('missing KHR_draco_mesh_compression');
     if (Math.abs(minY) > 0.05) issues.push(`pivot minY=${minY.toFixed(3)} (expected ~0.0)`);
 
-    if (file.startsWith('char_')) {
+    if (file.startsWith('char_') || file.startsWith('cust_') || file === 'waiter.glb') {
       if (skins === 0) issues.push('missing skin for SkeletonUtils.clone');
       for (const reqClip of REQUIRED_CHAR_CLIPS) {
         if (!clips.includes(reqClip)) issues.push(`missing clip "${reqClip}"`);

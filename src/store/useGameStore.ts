@@ -7,6 +7,7 @@ import type {
   HomeSnapshot,
   ProfileRow,
   RecipeProgressRow,
+  RestaurantOrderRow,
   StationStateRow,
 } from '../services/supabase/types';
 
@@ -17,6 +18,7 @@ export type ActiveOverlay =
   | 'recipe_book'
   | 'cutting_board'
   | 'stove'
+  | 'service_pass'
   | 'settings';
 
 export interface ToastItem {
@@ -30,6 +32,10 @@ let toastIdCounter = 0;
 function createInitialSnapshot(): HomeSnapshot {
   return {
     coins: 120,
+    restaurantOpen: false,
+    servedOrdersCount: 0,
+    serviceStreak: 0,
+    lastOrderSpawnedAt: null,
     profiles: {
       p1: {
         id: 'p1',
@@ -110,6 +116,7 @@ function createInitialSnapshot(): HomeSnapshot {
         irlNote: null,
       },
     },
+    orders: [],
   };
 }
 
@@ -118,10 +125,16 @@ interface GameState {
   currentRoom: RoomId;
   activeMarketStall: MarketStallId | 'all';
   coins: number;
+  restaurantOpen: boolean;
+  servedOrdersCount: number;
+  serviceStreak: number;
+  lastOrderSpawnedAt: string | null;
+  clockOffsetMs: number;
   profiles: Record<ProfileId, ProfileRow>;
   inventory: Record<string, number>;
   stations: Record<StationId, StationStateRow>;
   recipes: Record<RecipeId, RecipeProgressRow>;
+  orders: RestaurantOrderRow[];
   activeOverlay: ActiveOverlay;
   heldLockStation: StationId | null;
   toasts: ToastItem[];
@@ -129,10 +142,19 @@ interface GameState {
   openMarketStall: (stall: MarketStallId | 'all') => void;
   applySnapshot: (snapshot: HomeSnapshot) => void;
   setCoins: (coins: number) => void;
+  patchRestaurantMeta: (patch: {
+    restaurantOpen?: boolean;
+    servedOrdersCount?: number;
+    serviceStreak?: number;
+    lastOrderSpawnedAt?: string | null;
+  }) => void;
+  setClockOffsetMs: (offsetMs: number) => void;
   patchProfile: (profile: ProfileRow) => void;
   patchInventoryItem: (itemId: string, quantity: number) => void;
   patchStation: (station: StationStateRow) => void;
   patchRecipe: (recipe: RecipeProgressRow) => void;
+  upsertOrder: (order: RestaurantOrderRow) => void;
+  setOrders: (orders: RestaurantOrderRow[]) => void;
   setActiveOverlay: (overlay: ActiveOverlay) => void;
   setHeldLockStation: (station: StationId | null) => void;
   pushToast: (message: string, tone?: ToastItem['tone']) => void;
@@ -146,6 +168,7 @@ export const useGameStore = create<GameState>((set) => ({
   currentRoom: 'kitchen',
   activeMarketStall: 'all',
   ...initial,
+  clockOffsetMs: 0,
   activeOverlay: null,
   heldLockStation: null,
   toasts: [],
@@ -162,13 +185,31 @@ export const useGameStore = create<GameState>((set) => ({
     set({
       loaded: true,
       coins: snapshot.coins,
+      restaurantOpen: snapshot.restaurantOpen,
+      servedOrdersCount: snapshot.servedOrdersCount,
+      serviceStreak: snapshot.serviceStreak,
+      lastOrderSpawnedAt: snapshot.lastOrderSpawnedAt,
       profiles: snapshot.profiles,
       inventory: snapshot.inventory,
       stations: snapshot.stations,
       recipes: snapshot.recipes,
+      orders: snapshot.orders,
     }),
 
   setCoins: (coins) => set({ coins }),
+
+  patchRestaurantMeta: (patch) =>
+    set((state) => ({
+      restaurantOpen: patch.restaurantOpen ?? state.restaurantOpen,
+      servedOrdersCount: patch.servedOrdersCount ?? state.servedOrdersCount,
+      serviceStreak: patch.serviceStreak ?? state.serviceStreak,
+      lastOrderSpawnedAt:
+        patch.lastOrderSpawnedAt !== undefined
+          ? patch.lastOrderSpawnedAt
+          : state.lastOrderSpawnedAt,
+    })),
+
+  setClockOffsetMs: (clockOffsetMs) => set({ clockOffsetMs }),
 
   patchProfile: (profile) =>
     set((state) => ({
@@ -189,6 +230,23 @@ export const useGameStore = create<GameState>((set) => ({
     set((state) => ({
       recipes: { ...state.recipes, [recipe.recipeId]: recipe },
     })),
+
+  upsertOrder: (order) =>
+    set((state) => {
+      const idx = state.orders.findIndex((o) => o.id === order.id);
+      if (order.status === 'served' || order.status === 'expired') {
+        if (idx === -1) return state;
+        return { orders: state.orders.filter((o) => o.id !== order.id) };
+      }
+      if (idx === -1) {
+        return { orders: [...state.orders, order] };
+      }
+      const next = [...state.orders];
+      next[idx] = order;
+      return { orders: next };
+    }),
+
+  setOrders: (orders) => set({ orders }),
 
   setActiveOverlay: (activeOverlay) => set({ activeOverlay }),
 

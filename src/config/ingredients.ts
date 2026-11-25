@@ -1,14 +1,15 @@
-export type IngredientStage = 'raw' | 'prepped';
+export type IngredientStage = 'raw' | 'prepped' | 'cooked';
 
 export interface IngredientDef {
   id: string;
   name: string;
   stage: IngredientStage;
-  price: number; // 0 for prepped items (not sold in Market directly)
+  price: number; // Buy price for raw items; takeout sell price for cooked dishes; 0 for prepped
   icon: string;
   color: string;
   prepTargetId?: string;
   rawSourceId?: string;
+  recipeId?: 'menemen' | 'mantarli_makarna' | 'pankek';
 }
 
 export const INGREDIENTS: Record<string, IngredientDef> = {
@@ -127,6 +128,35 @@ export const INGREDIENTS: Record<string, IngredientDef> = {
     color: '#c1121f',
     rawSourceId: 'cilek',
   },
+
+  // Ocakta pişirilmiş, garsona veya paket satışa hazır tabaklar
+  dish_menemen: {
+    id: 'dish_menemen',
+    name: 'Hazır Menemen',
+    stage: 'cooked',
+    price: 38,
+    icon: '🍳',
+    color: '#e07a5f',
+    recipeId: 'menemen',
+  },
+  dish_mantarli_makarna: {
+    id: 'dish_mantarli_makarna',
+    name: 'Hazır Mantarlı Makarna',
+    stage: 'cooked',
+    price: 70,
+    icon: '🍝',
+    color: '#d4a373',
+    recipeId: 'mantarli_makarna',
+  },
+  dish_pankek: {
+    id: 'dish_pankek',
+    name: 'Hazır Çilekli Pankek',
+    stage: 'cooked',
+    price: 55,
+    icon: '🥞',
+    color: '#f2cc8f',
+    recipeId: 'pankek',
+  },
 };
 
 export const MARKET_ITEMS: readonly IngredientDef[] = Object.values(INGREDIENTS).filter(
@@ -139,4 +169,8 @@ export const PREPPABLE_ITEMS: readonly IngredientDef[] = Object.values(INGREDIEN
 
 export const PREPPED_ITEMS: readonly IngredientDef[] = Object.values(INGREDIENTS).filter(
   (item) => item.stage === 'prepped',
+);
+
+export const COOKED_ITEMS: readonly IngredientDef[] = Object.values(INGREDIENTS).filter(
+  (item) => item.stage === 'cooked',
 );

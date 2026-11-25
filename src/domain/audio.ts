@@ -198,6 +198,18 @@ class KitchenAudioEngine {
     this.playTone(260, 0.1, 'sawtooth', 0.09, 180, 0);
     this.playTone(190, 0.14, 'sawtooth', 0.09, 140, 0.09);
   }
+
+  /** Bright metallic bistro service bell ("Ding!") for new customer / order dispatch */
+  public playBell(): void {
+    this.playTone(1174.66, 0.28, 'sine', 0.13, 1170, 0);
+    this.playTone(2349.32, 0.18, 'sine', 0.06, 2340, 0);
+  }
+
+  /** Soft double chime when an order enters urgent (<20%) patience */
+  public playUrgent(): void {
+    this.playTone(587.33, 0.09, 'triangle', 0.09, 520, 0);
+    this.playTone(587.33, 0.1, 'triangle', 0.09, 480, 0.12);
+  }
 }
 
 export const kitchenAudio = new KitchenAudioEngine();

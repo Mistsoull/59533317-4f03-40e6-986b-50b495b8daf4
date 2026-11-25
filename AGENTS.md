@@ -12,7 +12,7 @@ Bu belge, **Bizim Mutfak (Unsere Küche)** projesinin güncel mimarisini, kullan
 - **Hedef Platform & Cihazlar:** Yalnızca Web/PWA (native derleme yok) — **iPhone 17 Pro (iOS Safari PWA)** ve **Samsung Galaxy S23 (Android Chrome PWA)**, **yalnızca yatay (landscape)** ekran yönü.
 - **Yayın (Canlı URL):** https://mistsoull.github.io/59533317-4f03-40e6-986b-50b495b8daf4/
 - **Depo:** https://github.com/Mistsoull/59533317-4f03-40e6-986b-50b495b8daf4
-- **v1 Kapsamı:** Sabit tek kalıcı ev (`home`), sabit 2 profil (`p1`, `p2`) + ortak PIN, tek mutfak (3 istasyon: **Buzdolabı**, **Kesme Tahtası**, **Ocak**), yürünebilir **3D Mahalle Marketi** (3 tezgah) ve **3 tarif** (**Menemen**, **Kremalı Mantarlı Makarna**, **Çilekli Pankek**).
+- **Kapsam:** Sabit tek kalıcı ev (`home`), sabit 2 profil (`p1`, `p2`) + ortak PIN, tek mutfak (3 istasyon: **Buzdolabı**, **Kesme Tahtası**, **Ocak** + **Servis Zili/Bankosu**), yürünebilir **3D Mahalle Marketi** (3 tezgah), yürünebilir **3D Restoran Salonu** (3 bistro masası, yürüyen **Müşteri NPC**'leri ve otomatik **Garson NPC**) ve **3 tarif** (**Menemen**, **Çilekli Pankek**, **Kremalı Mantarlı Makarna**).
 
 ---
 
@@ -39,7 +39,7 @@ Bu belge, **Bizim Mutfak (Unsere Küche)** projesinin güncel mimarisini, kullan
 | Cloud Backend | **Supabase** (`@supabase/supabase-js` `^2.49.1`) | Auth (`p1@home.local`, `p2@home.local`), Postgres + RLS, atomik PL/pgSQL RPC fonksiyonları |
 | Gerçek Zamanlı Hareket | **Supabase Realtime Broadcast** | Oyuncu konumu, yönü, odası ve animasyonu (~15 Hz throttle + 3s idle heartbeat + alıcıda 60fps lerp/slerp). **Postgres'e asla yazılmaz.** |
 | Çevrimiçi & Lobi Durumu | **Supabase Realtime Presence** | Tek ev kanalı (`kitchen:home`); giriş ekranında izole salt-okunur gözlemci istemci |
-| Kalıcı Ev Senkronizasyonu | **Supabase Realtime Postgres Changes** | `profiles`, `home_state`, `home_inventory`, `kitchen_stations`, `recipe_progress` canlı senkronizasyonu |
+| Kalıcı Ev Senkronizasyonu | **Supabase Realtime Postgres Changes** | `profiles`, `home_state`, `home_inventory`, `kitchen_stations`, `recipe_progress`, `restaurant_orders` canlı senkronizasyonu |
 | Yerel Fallback | `localStorage` + `sessionStorage` + `BroadcastChannel` | Supabase yapılandırması yoksa tarayıcı sekmeleri arasında yerel çok oyunculu demo modu |
 
 ### 3D Asset Pipeline, Test ve CI/CD
@@ -71,40 +71,41 @@ Tam bağlayıcı kurallar `.agents/rules/kitchen-game-rules.md` dosyasındadır:
 public/
   draco/                              # Yerel barındırılan Draco WASM/JS çözücüleri
   icons/                              # PWA uygulama ikonları (192, 512, maskable, apple-touch)
-  models/                             # 19 adet Draco .glb model (toplam 0.156 MB)
+  models/                             # 27 adet Draco .glb model (toplam 0.261 MB)
 scripts/
-  generate-models.mjs                 # 19 adet 3D .glb model üretici
+  generate-models.mjs                 # 27 adet 3D .glb model üretici (karakterler, NPC'ler, istasyonlar, yiyecek/tabaklar, masa)
   generate-icons.mjs                  # PWA PNG ikon üretici
   check-assets.mjs                    # 3D asset sözleşme & boyut bütçesi doğrulayıcı
 supabase/
-  migrations/001..004_*.sql           # Şema, RLS, atomik RPC'ler, seed ve profil/karakter migration'ları
+  migrations/001..005_*.sql           # Şema, RLS, atomik RPC'ler, seed, profil/karakter ve restoran/garson sipariş migration'ları
   full_setup.sql                      # Tek seferlik kurulum SQL paketi
 src/
-  config/                             # Sabit tanımlar: characters, ingredients, kitchenLayout, marketLayout, profiles, recipes
-  domain/                             # Saf TS iş mantığı: audio, collision2d, fullscreen, lobbyOccupancy, pathfinding, stationRules
+  config/                             # Sabit tanımlar: characters, ingredients (raw/prepped/cooked), kitchenLayout, marketLayout, restaurantLayout, profiles, recipes
+  domain/                             # Saf TS iş mantığı: audio, collision2d, fullscreen, lobbyOccupancy, pathfinding, restaurantRules, stationRules
   i18n/translations.ts                # Türkçe (tr) ve Almanca (de) tam yerelleştirme paketi
   scene/
     assets/                           # assetManifest, ModelSlot (+ fallback placeholders)
-    entities/                         # LocalPlayer (Tap-to-Move), RemotePlayer (60fps lerp/slerp)
-    stations/                         # StationInteractable, MarketStallInteractable
-    IsometricCamera.tsx               # Çift modlu kamera (Mutfak Orthographic, Market Perspective)
-    KitchenCanvas.tsx                 # WebGL 2 Canvas, ışıklar, oda geçişleri (unmount olmadan visible)
+    entities/                         # LocalPlayer, RemotePlayer, WaiterNpc (2D A* otomatik servis), RestaurantGuests (yürüyen müşteriler)
+    stations/                         # StationInteractable, MarketStallInteractable, ServicePassInteractable, RestaurantTableInteractable
+    IsometricCamera.tsx               # Çift modlu kamera (Mutfak & Restoran Orthographic, Market Perspective)
+    KitchenCanvas.tsx                 # WebGL 2 Canvas, ışıklar, 3 oda geçişi (unmount olmadan visible)
     KitchenRoom.tsx                   # 8m x 6m Mutfak sahnesi ve duvar/tezgah dekoru
     MarketRoom.tsx                    # Kapalı 3 duvarlı tam ekran Mahalle Marketi sahnesi
-    RoomDoor.tsx                      # Mutfak <-> Market yürüyerek geçiş kapıları
+    RestaurantRoom.tsx                # 8m x 6m bistro Restoran Salonu (3 masa, sokak girişi, servis pası)
+    RoomDoor.tsx                      # Mutfak <-> Market ve Mutfak <-> Restoran yürüyerek geçiş kapıları
     TargetMarker.tsx                  # Zemin dokunma hedef halkası
   services/
-    local/localHomeStore.ts           # Supabase yokken yerel kalıcılık & RPC simülasyonu
-    supabase/                         # client (+ izole lobby observer), auth, homeRepository, realtimeSync, types
-  store/                              # playerMotionStore, useGameStore, useSessionStore, useThemeStore, useLanguageStore, useSettingsStore
-  test/                               # Vitest birim testleri (collision2d, pathfinding, stationRules, lobbyOccupancy)
+    local/localHomeStore.ts           # Supabase yokken yerel kalıcılık & RPC simülasyonu (restoran + paket satış dahil)
+    supabase/                         # client (+ izole lobby observer), auth, homeRepository (+ clockOffsetMs), realtimeSync, types
+  store/                              # playerMotionStore, restaurantMotionStore, useGameStore, useSessionStore, useThemeStore, useLanguageStore, useSettingsStore
+  test/                               # Vitest birim testleri (collision2d, pathfinding, stationRules, lobbyOccupancy, restaurantRules)
   ui/
     auth/ProfilePinGate.tsx           # Profil slotu, özel isim, 4 karakter seçici, canlı doluluk kilidi ve PIN tuş takımı
     common/ModalDialog.tsx            # Erişilebilir ortak modal kabuğu
     guards/LandscapeGuard.tsx         # Dikey yön engelleme katmanı
-    hud/                              # TopHudBar (sadeleştirilmiş), ToastLayer
-    minigames/                        # ChoppingMiniGame (Kesme Tahtası), CookingMiniGame (Ocak)
-    modals/                           # FridgeModal, MarketModal, RecipeBookModal, SettingsModal
+    hud/                              # TopHudBar, OrderTicketBar (tüm odalarda canlı sipariş şeridi), ToastLayer
+    minigames/                        # ChoppingMiniGame (Kesme Tahtası), CookingMiniGame (Ocak -> hazır tabak)
+    modals/                           # FridgeModal, MarketModal, ServicePassModal, RecipeBookModal, SettingsModal
 ```
 
 ---
@@ -112,20 +113,27 @@ src/
 ## 5. Şimdiye Kadar Yapılanlar (Güncel Özellik Envanteri)
 
 ### Oyun Mekaniği, 3D Sahne ve Kamera
-- **Mutfak Sahnesi (`KitchenRoom`):** 8m × 6m ızgara, engelsiz sağ arka duvarda **Buzdolabı** (`[3.22, 0, -2.42]`), orta-sol **Kesme Tahtası**, sağ-orta **Ocak**, sol duvarda yürüyerek çıkış için **Market Kapısı** (`RoomDoor`). Kamera: klasik izometrik `OrthographicCamera` (`[10.5, 10.2, 13.0]`, `lookAt(0, 0.72, -0.22)`).
+- **Mutfak Sahnesi (`KitchenRoom`):** 8m × 6m ızgara, engelsiz sağ arka duvarda **Buzdolabı** (`[3.22, 0, -2.42]`), orta-sol **Kesme Tahtası**, sağ-orta **Ocak**, sol duvarda **Market Kapısı**, sağ kenarda Buzdolabı/Ocak koridoruyla çakışmayan **Servis Zili / Bankosu** (`[3.68, 0, 0.38]`) ve alçak bistro **Restoran Kapısı** (`[3.95, 0, 2.05]`). Kamera: klasik izometrik `OrthographicCamera` (`[10.5, 10.2, 13.0]`, `lookAt(0, 0.72, -0.22)`).
 - **Yürünebilir 3D Mahalle Marketi (`MarketRoom`):** HUD'da ışınlanma butonu yoktur; yalnızca kapılara yürüyerek geçilir. Etrafında boşluk bırakmayan, 3 duvarlı tam ekran kapalı iç mekan çapraz `PerspectiveCamera` açısı (`[2.35, 5.0, 6.7]`, `lookAt(-0.35, 0.92, -1.35)`). 3 etkileşimli tezgah (**Manav**, **Süt & Yumurta**, **Kuru Gıda**) ve sol arka duvarda **Mutfağa Dön** kapısı (`[-3.28, 0, -3.02]`).
-- **Oda Geçiş Performansı:** Her iki oda React ağacında canlı tutulur (`visible={currentRoom === ...}`), React 19 + drei `<Html>` unmount `removeChild` hatası engellenmiş ve geçiş `< 1 ms` hıza indirilmiştir.
-- **Tap-to-Move & Çarpışma:** Saf TypeScript 2D AABB (`collision2d.ts`) ve 2D ızgara A* (`pathfinding.ts`). İstasyon veya kapıya dokunulduğunda oyuncu otomatik `interactionPoint` noktasına yürür, yüzünü döner ve etkileşimi başlatır.
+- **Yürünebilir 3D Restoran Salonu & Otomatik Garson NPC (`RestaurantRoom`, `WaiterNpc`, `RestaurantGuests`):**
+  - Mutfak'taki sağ bistro kapısından yürüyerek geçilen 8m × 6m sıcak bistro salonu (izometrik `OrthographicCamera`), 3 bistro masası, sokak giriş kapısı ve restoran tarafı servis bankosu.
+  - **Manuel Açılış & Deterministik Host:** `home_state.restaurant_open` varsayılanı `false` (servis manuel açılır). Oturum açılışında süresi dolmuş siparişler sessizce temizlenir. Presence üzerinden `p1` öncelikli Host seçimi + sunucu taraflı 8 sn cooldown + aktif masa limiti (1 kişi max 2, 2 kişi max 3 masa) + `get_server_time()` ile `clockOffsetMs` saat sapması telafisi çalışır.
+  - **Zorluk Seviyesine Göre Teslim Süreleri & Cozy Mod:** Menemen (Kolay `90 sn`), Çilekli Pankek (Orta `120 sn`), Kremalı Mantarlı Makarna (Zor `150 sn`); tek oyuncuda otomatik `×1.35`. Kalan süre `>%50` ise hızlı servis bahşişi (`+%25`/`+%30`), `%20–%50` normal ücret, `<%20` `%85` ücret; süre dolunca **Cozy Mod** gereği coin cezası yok, sadece seri sıfırlanır.
+  - **Otomatik Garson Teslimatı:** Pişen yemekler `stage = 'cooked'` stoğuna girer. Oyuncular tabağı elle taşımaz; tüm odalarda görünen `OrderTicketBar` (`350ms` hafif tik) veya `ServicePassModal` üzerinden **"Hazır / Gönder"** basıldığı an `serve_restaurant_order` RPC süreyi dondurup (`status = 'delivering'`) coin + bahşişi kilitler (garson yürürken sipariş asla zaman aşımına uğramaz). 3D **Garson NPC (`waiter.glb`)** 2D A* ile tabağı masaya götürür, müşteri ~4 sn yiyip kapıdan çıkar (sıfır DB pozisyon yazımı; 3D masa süre barları `useFrame` Three.js ref ile güncellenir).
+  - **Fazla Tabak Paket Satışı:** `ServicePassModal` üzerinden fazla pişen tabaklar `sell_cooked_dish` RPC ile satılabilir; `needsPantrySupport` hazır tabak stoğunu da dikkate alır.
+- **Oda Geçiş Performansı:** Her üç oda React ağacında canlı tutulur (`visible={currentRoom === ...}`), React 19 + drei `<Html>` unmount `removeChild` hatası engellenmiş, geçiş `< 1 ms` hıza indirilmiş ve Garson/Müşteri animasyonları mutfaktayken de kesintisiz çalışır.
+- **Tap-to-Move & Çarpışma:** Saf TypeScript 2D AABB (`collision2d.ts`) ve 2D ızgara A* (`pathfinding.ts`). İstasyon, servis bankosu veya kapıya dokunulduğunda oyuncu otomatik `interactionPoint` noktasına yürür, yüzünü döner ve etkileşimi başlatır.
 - **Mini-Oyunlar ve Tarif Defteri:**
   - **Kesme Tahtası (`ChoppingMiniGame`):** Yeşil zamanlama bölgesinde dokunarak ham malzemeleri doğrama (`complete_prep` RPC).
-  - **Ocak (`CookingMiniGame`):** Isıyı altın bölgede tutup zamanlı karıştırma/çevirme ile 3 tarifi pişirme ve coin kazanma (`complete_cook` RPC).
+  - **Ocak (`CookingMiniGame`):** Isıyı altın bölgede tutup zamanlı karıştırma/çevirme ile 3 tarifi pişirip servise hazır tabak üretme (`complete_cook` RPC); bekleyen müşteri siparişleri rozetle vurgulanır.
   - **Tarif Defteri (`RecipeBookModal`):** 3 tarifin oyun içi gereksinimleri, isteğe bağlı açılıp kapatılabilen **Gerçek Hayat Tarifleri** (malzemeler, adımlar, şef notu) ve çift onay bonuslu **"Gerçekte Yaptık!"** akışı (`confirm_recipe_irl` RPC).
-  - **Ekonomik Kilitlenme Koruması:** Kasa ve stok boşaldığında ücretsiz `+50 Coin` destek paketi (`claim_pantry_support` RPC).
+  - **Ekonomik Kilitlenme Koruması:** Kasa, hazır tabak ve stok boşaldığında ücretsiz `+50 Coin` destek paketi (`claim_pantry_support` RPC).
 
-### 3D Asset Envanteri (`0.156 MB / 15.000 MB`)
-- **4 İskeletli Karakter (`SkeletonUtils.clone`, `Idle`/`Walk`/`Interact`):** `char_bubu.glb` (Bubu), `char_dudu.glb` (Dudu), `char_cat.glb` (Kedi), `char_dog.glb` (Köpek).
-- **3 Mutfak İstasyonu:** `station_fridge.glb`, `station_cutting_board.glb`, `station_stove.glb`.
-- **9 Heykelimsi Yiyecek/Malzeme:** `food_domates`, `food_biber`, `food_yumurta`, `food_mantar`, `food_makarna`, `food_krema`, `food_cilek`, `food_un`, `food_sut`.
+### 3D Asset Envanteri (`0.261 MB / 15.000 MB`)
+- **4 İskeletli Oyuncu Karakteri (`SkeletonUtils.clone`, `Idle`/`Walk`/`Interact`):** `char_bubu.glb` (Bubu), `char_dudu.glb` (Dudu), `char_cat.glb` (Kedi), `char_dog.glb` (Köpek).
+- **4 İskeletli Restoran NPC'si (`SkeletonUtils.clone`, `Idle`/`Walk`/`Interact`):** `waiter.glb` (Garson), `cust_fox.glb` (Tilki), `cust_bunny.glb` (Tavşan), `cust_bear.glb` (Ayıcık).
+- **3 Mutfak İstasyonu & 1 Bistro Masası:** `station_fridge.glb`, `station_cutting_board.glb`, `station_stove.glb`, `restaurant_table.glb`.
+- **9 Heykelimsi Ham Malzeme & 3 Servis Tabağı:** `food_domates`, `food_biber`, `food_yumurta`, `food_mantar`, `food_makarna`, `food_krema`, `food_cilek`, `food_un`, `food_sut` + `dish_menemen`, `dish_mantarli_makarna`, `dish_pankek`.
 - **3 Market Tezgahı:** `market_produce.glb`, `market_dairy.glb`, `market_pantry.glb`.
 
 ### Çok Oyunculu, Supabase Cloud ve Giriş Koruması
@@ -154,8 +162,8 @@ Her değişiklik sonrası dağıtım öncesi aşağıdaki kontroller hatasız ge
 
 ```bash
 npm run typecheck     # TypeScript strict kontrolü (tsc -b --noEmit)
-npm test              # Vitest birim testleri (şu an 4 dosya, 14 test)
-npm run check:assets  # 19 .glb modelin Draco, pivot, klip ve <15 MB bütçe kontrolü
+npm test              # Vitest birim testleri (şu an 5 dosya, 19 test)
+npm run check:assets  # 27 .glb modelin Draco, pivot, klip ve <15 MB bütçe kontrolü
 npm run build         # Üretim derlemesi + PWA Service Worker (GitHub Pages için VITE_BASE_PATH ile)
 ```
 
@@ -178,4 +186,5 @@ Diğer yardımcı komutlar:
 | 2026-11-25 | `51d9307` | Mutfak kamerası klasik izometrik açıya (`[10.5, 10.2, 13.0]`) döndürüldü; yüksek açılı kamera Market'e alındı. |
 | 2026-11-25 | `cc15f26` | Market kamerası kullanıcı geri bildirimi üzerine önceki tam ekran çapraz iç mekan açısına (`[2.35, 5.0, 6.7]`) geri alındı. |
 | 2026-11-25 | `5263954` | Giriş ekranında canlı Presence ile oyundaki oyuncu slotu ve karakterini tıklanamaz yapma, boş slota/karaktere otomatik geçiş ve `lobbyOccupancy` birim testleri eklendi. |
-| 2026-11-25 | *(güncel)* | Proje özeti, teknoloji yığını, mimari ve değişiklik günlüğünü içeren `AGENTS.md` oluşturuldu; `.agents/rules/kitchen-game-rules.md` içine her güncellemede `AGENTS.md` güncelleme zorunluluğu eklendi. |
+| 2026-11-25 | `b849492` | Proje özeti, teknoloji yığını, mimari ve değişiklik günlüğünü içeren `AGENTS.md` oluşturuldu; `.agents/rules/kitchen-game-rules.md` içine her güncellemede `AGENTS.md` güncelleme zorunluluğu eklendi. |
+| 2026-11-25 | *(güncel)* | Mutfak'a bağlı yürünebilir **3D Restoran Salonu** (3 masa), yürüyen 3D müşteri NPC'leri, otomatik 3D **Garson NPC** (`waiter.glb`), zorluk bazlı teslim süreleri (90/120/150sn + tek kişi ×1.35 + Cozy Mod), manuel restoran açılışı, deterministik Host + sunucu cooldown/limit, `clockOffsetMs`, tüm odalarda canlı `OrderTicketBar`, `ServicePassModal`, `sell_cooked_dish` RPC, 8 yeni Draco `.glb` ve `005_restaurant_orders.sql` canlı Supabase Cloud kurulumu eklendi. |

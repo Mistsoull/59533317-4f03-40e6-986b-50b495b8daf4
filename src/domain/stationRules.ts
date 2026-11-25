@@ -1,4 +1,9 @@
-import { INGREDIENTS, PREPPABLE_ITEMS, type IngredientDef } from '../config/ingredients';
+import {
+  COOKED_ITEMS,
+  INGREDIENTS,
+  PREPPABLE_ITEMS,
+  type IngredientDef,
+} from '../config/ingredients';
 import type { ProfileId } from '../config/profiles';
 import type { RecipeDef } from '../config/recipes';
 
@@ -57,7 +62,8 @@ export function canCookRecipe(
 }
 
 /**
- * Prevents economic soft-lock when coins < 30 and no recipe can be cooked or prepped.
+ * Prevents economic soft-lock when coins < 30 and no cooked dish can be served/sold
+ * AND no recipe can be cooked or prepped from current inventory.
  */
 export function needsPantrySupport(
   coins: number,
@@ -65,6 +71,11 @@ export function needsPantrySupport(
   recipes: readonly RecipeDef[],
 ): boolean {
   if (coins >= 30) return false;
+
+  // Player can still earn coins by serving or selling an already cooked dish!
+  const hasCookedDish = COOKED_ITEMS.some((dish) => (inventory[dish.id] ?? 0) > 0);
+  if (hasCookedDish) return false;
+
   const anyCookable = recipes.some((r) => canCookRecipe(r, inventory));
   if (anyCookable) return false;
 

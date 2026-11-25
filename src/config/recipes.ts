@@ -1,4 +1,5 @@
 export type RecipeId = 'menemen' | 'mantarli_makarna' | 'pankek';
+export type RecipeDifficulty = 'easy' | 'medium' | 'hard';
 
 export interface RecipeRequirement {
   itemId: string;
@@ -19,7 +20,17 @@ export interface RecipeDef {
   name: string;
   icon: string;
   tagline: string;
+  difficulty: RecipeDifficulty;
+  /** Base restaurant delivery time limit in seconds (2-player baseline; solo gets ×1.35) */
+  baseDeliverySeconds: number;
+  /** Base coins paid when served in restaurant on time */
   rewardCoins: number;
+  /** Fast-service bonus tip percentage (e.g. 0.25 = +25% when >50% patience remains) */
+  tipRate: number;
+  /** Cooked dish item_id stored in home_inventory (stage = 'cooked') */
+  cookedItemId: string;
+  /** Takeout sale price when selling surplus cooked dishes directly */
+  takeoutPrice: number;
   cookStyle: 'stir' | 'simmer' | 'flip';
   cookActionLabel: string;
   requirements: readonly RecipeRequirement[];
@@ -32,7 +43,12 @@ export const RECIPES: Record<RecipeId, RecipeDef> = {
     name: 'Menemen',
     icon: '🍳',
     tagline: 'Sıcak kahvaltı klasiği — domates ve biberi doğra, ocakta harmanla.',
+    difficulty: 'easy',
+    baseDeliverySeconds: 90,
     rewardCoins: 65,
+    tipRate: 0.25,
+    cookedItemId: 'dish_menemen',
+    takeoutPrice: 38,
     cookStyle: 'stir',
     cookActionLabel: 'Karıştır',
     requirements: [
@@ -66,7 +82,12 @@ export const RECIPES: Record<RecipeId, RecipeDef> = {
     name: 'Kremalı Mantarlı Makarna',
     icon: '🍝',
     tagline: 'İpeksi mantar soslu akşam yemeği — mantarı dilimle, krema ile bağla.',
-    rewardCoins: 90,
+    difficulty: 'hard',
+    baseDeliverySeconds: 150,
+    rewardCoins: 120,
+    tipRate: 0.3,
+    cookedItemId: 'dish_mantarli_makarna',
+    takeoutPrice: 70,
     cookStyle: 'simmer',
     cookActionLabel: 'Harmanla',
     requirements: [
@@ -101,7 +122,12 @@ export const RECIPES: Record<RecipeId, RecipeDef> = {
     name: 'Çilekli Pankek',
     icon: '🥞',
     tagline: 'Yumuşacık tatlı mola — çilekleri dilimle, tavada altın gibi çevir.',
+    difficulty: 'medium',
+    baseDeliverySeconds: 120,
     rewardCoins: 95,
+    tipRate: 0.25,
+    cookedItemId: 'dish_pankek',
+    takeoutPrice: 55,
     cookStyle: 'flip',
     cookActionLabel: 'Çevir',
     requirements: [

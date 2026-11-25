@@ -70,6 +70,7 @@ export function getSupabaseClient(): SupabaseClient | null {
       detectSessionInUrl: false,
     },
     realtime: {
+      heartbeatIntervalMs: 15_000,
       params: {
         eventsPerSecond: 20,
       },

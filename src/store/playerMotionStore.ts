@@ -147,6 +147,11 @@ export const playerMotionStore: {
   },
 
   applyRemotePacket(profileId, sessionNonce, room, x, z, rotY, anim, seq) {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) {
+      return;
+    }
+    const safeRotY = Number.isFinite(rotY) ? rotY : 0;
+
     const sameSession =
       this.remote.profileId === profileId &&
       this.remote.sessionNonce === sessionNonce;
@@ -165,13 +170,13 @@ export const playerMotionStore: {
     this.remote.lastPacketAt = performance.now();
     this.remote.targetX = x;
     this.remote.targetZ = z;
-    this.remote.targetRotY = rotY;
+    this.remote.targetRotY = safeRotY;
     this.remote.anim = anim;
 
     if (!this.remote.initialized || !sameSession || roomChanged) {
       this.remote.x = x;
       this.remote.z = z;
-      this.remote.rotY = rotY;
+      this.remote.rotY = safeRotY;
       this.remote.initialized = true;
     }
   },
@@ -182,13 +187,20 @@ export const playerMotionStore: {
     const roomChanged = this.remote.room !== room;
     this.remote.room = room;
 
-    if ((!this.remote.initialized || roomChanged) && typeof x === 'number' && typeof z === 'number') {
+    if (
+      (!this.remote.initialized || roomChanged) &&
+      typeof x === 'number' &&
+      typeof z === 'number' &&
+      Number.isFinite(x) &&
+      Number.isFinite(z)
+    ) {
+      const safeRotY = typeof rotY === 'number' && Number.isFinite(rotY) ? rotY : 0;
       this.remote.x = x;
       this.remote.z = z;
       this.remote.targetX = x;
       this.remote.targetZ = z;
-      this.remote.rotY = rotY ?? 0;
-      this.remote.targetRotY = rotY ?? 0;
+      this.remote.rotY = safeRotY;
+      this.remote.targetRotY = safeRotY;
       this.remote.anim = anim ?? 'Idle';
       this.remote.initialized = true;
     }

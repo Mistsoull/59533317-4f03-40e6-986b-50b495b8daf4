@@ -37,9 +37,9 @@ Bu belge, **Bizim Mutfak (Unsere Küche)** projesinin güncel mimarisini, kullan
 | Katman | Teknoloji | Kullanım Amacı |
 | :--- | :--- | :--- |
 | Cloud Backend | **Supabase** (`@supabase/supabase-js` `^2.49.1`) | Auth (`p1@home.local`, `p2@home.local`), Postgres + RLS, atomik PL/pgSQL RPC fonksiyonları |
-| Gerçek Zamanlı Hareket | **Supabase Realtime Broadcast** | Oyuncu konumu, yönü, odası ve animasyonu (~15 Hz throttle + 3s idle heartbeat + alıcıda 60fps lerp/slerp). **Postgres'e asla yazılmaz.** |
-| Çevrimiçi & Lobi Durumu | **Supabase Realtime Presence** | Tek ev kanalı (`kitchen:home`); giriş ekranında izole salt-okunur gözlemci istemci |
-| Kalıcı Ev Senkronizasyonu | **Supabase Realtime Postgres Changes** | `profiles`, `home_state`, `home_inventory`, `kitchen_stations`, `recipe_progress`, `restaurant_orders` canlı senkronizasyonu |
+| Gerçek Zamanlı Hareket | **Supabase Realtime Broadcast** | Oyuncu konumu, yönü, odası ve animasyonu (`kitchen:home` kanalı, ~15 Hz throttle + 2.5s idle heartbeat + alıcıda 60fps lerp/slerp + 10s grace penceresi). **Postgres'e asla yazılmaz.** |
+| Çevrimiçi & Lobi Durumu | **Supabase Realtime Presence** | İzole Broadcast+Presence kanalı (`kitchen:home`); giriş ekranında salt-okunur gözlemci istemci |
+| Kalıcı Ev Senkronizasyonu | **Supabase Realtime Postgres Changes** | Ayrı `kitchen:db` kanalında `profiles`, `home_state`, `home_inventory`, `kitchen_stations`, `recipe_progress`, `restaurant_orders` canlı senkronizasyonu |
 | Yerel Fallback | `localStorage` + `sessionStorage` + `BroadcastChannel` | Supabase yapılandırması yoksa tarayıcı sekmeleri arasında yerel çok oyunculu demo modu |
 
 ### 3D Asset Pipeline, Test ve CI/CD
@@ -81,7 +81,7 @@ supabase/
   full_setup.sql                      # Tek seferlik kurulum SQL paketi
 src/
   config/                             # Sabit tanımlar: characters, ingredients (raw/prepped/cooked), kitchenLayout, marketLayout, restaurantLayout, profiles, recipes
-  domain/                             # Saf TS iş mantığı: audio, collision2d, fullscreen, lobbyOccupancy, pathfinding, restaurantRules, stationRules
+  domain/                             # Saf TS iş mantığı: audio, collision2d, fullscreen, lobbyOccupancy, partnerPresence, pathfinding, restaurantRules, stationRules
   i18n/translations.ts                # Türkçe (tr) ve Almanca (de) tam yerelleştirme paketi
   scene/
     assets/                           # assetManifest, ModelSlot (+ fallback placeholders)
@@ -98,7 +98,7 @@ src/
     local/localHomeStore.ts           # Supabase yokken yerel kalıcılık & RPC simülasyonu (restoran + paket satış dahil)
     supabase/                         # client (+ izole lobby observer), auth, homeRepository (+ clockOffsetMs), realtimeSync, types
   store/                              # playerMotionStore, restaurantMotionStore, useGameStore, useSessionStore, useThemeStore, useLanguageStore, useSettingsStore
-  test/                               # Vitest birim testleri (collision2d, pathfinding, stationRules, lobbyOccupancy, restaurantRules)
+  test/                               # Vitest birim testleri (collision2d, pathfinding, stationRules, lobbyOccupancy, partnerPresence, restaurantRules)
   ui/
     auth/ProfilePinGate.tsx           # Profil slotu, özel isim, 4 karakter seçici, canlı doluluk kilidi ve PIN tuş takımı
     common/ModalDialog.tsx            # Erişilebilir ortak modal kabuğu
@@ -139,7 +139,9 @@ src/
 ### Çok Oyunculu, Supabase Cloud ve Giriş Koruması
 - **Supabase Cloud Kurulumu:** `001_initial_schema.sql` – `004_profile_character.sql` şemaları, RLS politikaları, atomik RPC'ler ve `p1@home.local` / `p2@home.local` hesapları canlı Supabase projesinde yapılandırıldı.
 - **İstasyon Kilidi & Heartbeat:** Kesme Tahtası ve Ocak için atomik `acquire_station_lock` (25s TTL), 10 saniyelik `heartbeat_station_lock`, çıkışta/sekme kapanışında `release_station_lock`.
-- **Geç Katılan Oyuncu (Late-Joiner) Senkronizasyonu:** 4 katmanlı yapı — `SUBSCRIBED` anında `sync_request` el sıkışması (+ 1.2s tekrar deneme), Presence içinde başlangıç koordinat tohumlaması, Broadcast paketleriyle kendi kendini onaran `onlineProfiles`, `sessionNonce` ile yenileme sonrası paket koruması ve 3 saniyelik düşük frekanslı idle Broadcast kalp atışı (0 DB yazımı).
+- **Geç Katılan Oyuncu & Kesintisiz Görünürlük (`realtimeSync.ts`, `partnerPresence.ts`, `RemotePlayer.tsx`):**
+  - Broadcast+Presence (`kitchen:home`) ve `postgres_changes` (`kitchen:db`) ayrı kanallara ayrıldı; `heartbeatIntervalMs: 15_000`, `CHANNEL_ERROR`/`TIMED_OUT`/`CLOSED` durumlarında artan bekleme (backoff) ile otomatik yeniden bağlanma, 5 saniyelik sağlık kontrolü (`watchdog`), iOS/Android `visibilitychange`/`pageshow`/`online` geri dönüş kurtarması ve çıkışta anlık `player_leave` yayını eklendi.
+  - `SUBSCRIBED` anında `sync_request` el sıkışması (Presence tekrar-track döngüsü olmadan yalnızca Broadcast yanıtı), Presence içinde başlangıç koordinat tohumlaması, `reconcileOnlineProfiles` ile 10 sn Broadcast grace penceresi (geçici Presence dalgalanmalarında partner silinmez), 2.5s idle Broadcast kalp atışı (0 DB yazımı), `NaN` koordinat koruması ve `<RemotePlayer>`'ın unmount olmadan `visible={inSameRoom}` ile canlı tutulması sağlandı.
 - **Giriş Ekranı Canlı Doluluk Kilidi (`ProfilePinGate` + `lobbyOccupancy.ts`):**
   - İzole salt-okunur `anon` Supabase Presence gözlemcisi (`.track()` çağırmaz, mevcut oyunculara sahte katılım bildirimi göndermez) + yerel `BroadcastChannel` desteği.
   - Oyunda aktif olan oyuncu slotu (`🔒 Oyunda` / `🔒 Im Spiel`) ve seçili karakter (`🔒 <İsim>`) `disabled` edilip tıklanamaz hale getirilir; yeni giren oyuncunun seçimi otomatik boş slota ve boş karaktere kaydırılır; her iki slot doluysa giriş engellenir.
@@ -153,7 +155,7 @@ src/
   - Üst çubukta yalnızca sol tarafta ortak coin (`🪙`), sağ tarafta ise **🔔 Siparişler** (aktif sayı + acil/hazır rozetiyle ortalı popup açar), **Tarif Defteri** ve tek **⚙️ Ayarlar** butonu bulunur (sabit çevrimiçi/çevrimdışı rozeti, sabit sipariş şeridi, oda bilgisi, alt ipucu ve markete ışınlanma butonu kaldırıldı).
   - Yeni müşteri siparişi geldiğinde alt ortada tıklanabilir bildirim çıkar; dokunulduğunda doğrudan ortalı **Siparişler & Servis** penceresini açar.
   - Ortalı Ayarlar penceresinde: Dil (TR/DE), Görünüm (Açık/Gece), Tam Ekran Modu (`src/domain/fullscreen.ts`), Ses Efektleri, Gerçek Hayat Tarifleri aç/kapa (`useSettingsStore`) ve Çıkış Yap yer alır.
-- **Android/iOS Tam Ekran PWA:** Manifest `display: 'fullscreen'` (`display_override: ['fullscreen', 'standalone']`), `orientation: 'landscape'` ve iOS standalone meta etiketleri.
+- **Android/iOS Tam Ekran PWA & WebKit Modal Uyumu:** Manifest `display: 'fullscreen'` (`display_override: ['fullscreen', 'standalone']`), `orientation: 'landscape'` ve iOS standalone meta etiketleri. `ModalDialog` içinde `<header shrink-0>` + `overflow-clip` ve `.modal-scroll-area` üzerinde `flex: 0 1 auto`, `min-block-size: 0`, safe-area uyumlu `max-block-size` kullanılarak iOS Safari PWA'da otomatik yükseklikli `<dialog>` pencerelerinin dikey çökmesi engellendi.
 
 ---
 
@@ -163,7 +165,7 @@ Her değişiklik sonrası dağıtım öncesi aşağıdaki kontroller hatasız ge
 
 ```bash
 npm run typecheck     # TypeScript strict kontrolü (tsc -b --noEmit)
-npm test              # Vitest birim testleri (şu an 5 dosya, 19 test)
+npm test              # Vitest birim testleri (şu an 6 dosya, 23 test)
 npm run check:assets  # 27 .glb modelin Draco, pivot, klip ve <15 MB bütçe kontrolü
 npm run build         # Üretim derlemesi + PWA Service Worker (GitHub Pages için VITE_BASE_PATH ile)
 ```
@@ -190,4 +192,5 @@ Diğer yardımcı komutlar:
 | 2026-11-25 | `b849492` | Proje özeti, teknoloji yığını, mimari ve değişiklik günlüğünü içeren `AGENTS.md` oluşturuldu; `.agents/rules/kitchen-game-rules.md` içine her güncellemede `AGENTS.md` güncelleme zorunluluğu eklendi. |
 | 2026-11-25 | `cd46a52` | Mutfak'a bağlı yürünebilir **3D Restoran Salonu** (3 masa), yürüyen 3D müşteri NPC'leri, otomatik 3D **Garson NPC** (`waiter.glb`), zorluk bazlı teslim süreleri (90/120/150sn + tek kişi ×1.35 + Cozy Mod), manuel restoran açılışı, deterministik Host + sunucu cooldown/limit, `clockOffsetMs`, tüm odalarda canlı `OrderTicketBar`, `ServicePassModal`, `sell_cooked_dish` RPC, 8 yeni Draco `.glb` ve `005_restaurant_orders.sql` canlı Supabase Cloud kurulumu eklendi. |
 | 2026-11-25 | `134bba2` | Mutfak (`KitchenRoom`) ve Restoran (`RestaurantRoom`) da Market gibi etrafında hiç boşluk bırakmayan 3 duvarlı tam ekran kapalı iç mekan `PerspectiveCamera` (`[1.45, 5.35, 7.45]`, `lookAt(-0.1, 0.65, -0.65)`) mimarisine geçirildi; Mutfak sağ duvarına servis penceresi ve tam boy bistro kapısı eklendi. |
-| 2026-11-25 | *(güncel)* | Aynı müşterinin/tarifin eşzamanlı iki masada çıkması engellendi (`pickNextSpawnCandidate` + `useGameStore` masa bazlı tekilleştirme); sabit `OrderTicketBar` ve üst HUD'daki sabit çevrimiçi rozeti kaldırıldı; yeni siparişlerde tıklanabilir bildirim (`ToastLayer`) + üst çubukta ortalı **Siparişler & Servis** popup'ını açan **🔔 Siparişler** butonu eklendi. |
+| 2026-11-25 | `f5c90fa` | Aynı müşterinin/tarifin eşzamanlı iki masada çıkması engellendi (`pickNextSpawnCandidate` + `useGameStore` masa bazlı tekilleştirme); sabit `OrderTicketBar` ve üst HUD'daki sabit çevrimiçi rozeti kaldırıldı; yeni siparişlerde tıklanabilir bildirim (`ToastLayer`) + üst çubukta ortalı **Siparişler & Servis** popup'ını açan **🔔 Siparişler** butonu eklendi. |
+| 2026-11-26 | *(güncel)* | iOS Safari `<dialog>` modallarının dikey çökmesini (`flex: 0 1 auto` + safe-area `max-block-size` + `shrink-0` header + `overflow-clip`) düzelten layout güncellemesi; 2 oyunculu Realtime kararlılığı için `kitchen:home` / `kitchen:db` kanal ayrımı, backoff reconnect, `visibilitychange`/`pageshow` kurtarması, `partnerPresence.ts` 10s Broadcast grace penceresi (+4 test) ve unmount olmayan `<RemotePlayer>` uygulandı. |

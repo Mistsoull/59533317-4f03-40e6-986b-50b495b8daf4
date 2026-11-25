@@ -110,7 +110,9 @@ export default function App() {
       const prof = snap.profiles[profileId];
       const displayName = prof?.displayName ?? PROFILES[profileId].defaultName;
       const characterId = prof?.characterId ?? PROFILES[profileId].defaultCharacter;
-      kitchenRealtime.connect(profileId, displayName, characterId);
+      kitchenRealtime.connect(profileId, displayName, characterId, () => {
+        void fetchHomeSnapshot(false);
+      });
     });
 
     return () => {

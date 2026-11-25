@@ -75,28 +75,34 @@ export function RemotePlayer({
     const dt = Math.min(delta, 0.05);
     const smooth = 1 - Math.exp(-12 * dt);
 
+    if (!Number.isFinite(rem.x) || !Number.isFinite(rem.z) || !Number.isFinite(rem.targetX) || !Number.isFinite(rem.targetZ)) {
+      return;
+    }
+
     rem.x += (rem.targetX - rem.x) * smooth;
     rem.z += (rem.targetZ - rem.z) * smooth;
-    rem.rotY = lerpAngle(rem.rotY, rem.targetRotY, smooth);
+    rem.rotY = lerpAngle(
+      Number.isFinite(rem.rotY) ? rem.rotY : 0,
+      Number.isFinite(rem.targetRotY) ? rem.targetRotY : 0,
+      smooth,
+    );
     animRef.current = rem.anim;
 
     group.position.set(rem.x, 0, rem.z);
     group.rotation.y = rem.rotY;
   });
 
-  if (!inSameRoom) {
-    return null;
-  }
-
-  const initX = playerMotionStore.remote.initialized
-    ? playerMotionStore.remote.x
-    : PROFILES[partnerId].spawnPosition[0];
-  const initZ = playerMotionStore.remote.initialized
-    ? playerMotionStore.remote.z
-    : PROFILES[partnerId].spawnPosition[1];
+  const initX =
+    playerMotionStore.remote.initialized && Number.isFinite(playerMotionStore.remote.x)
+      ? playerMotionStore.remote.x
+      : PROFILES[partnerId].spawnPosition[0];
+  const initZ =
+    playerMotionStore.remote.initialized && Number.isFinite(playerMotionStore.remote.z)
+      ? playerMotionStore.remote.z
+      : PROFILES[partnerId].spawnPosition[1];
 
   return (
-    <group ref={groupRef} position={[initX, 0, initZ]}>
+    <group ref={groupRef} position={[initX, 0, initZ]} visible={inSameRoom}>
       <ModelSlot
         key={assetId}
         assetId={assetId}
@@ -115,7 +121,11 @@ export function RemotePlayer({
         style={{ pointerEvents: 'none' }}
       >
         <div
-          className="rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-tight text-white shadow-md whitespace-nowrap border border-white/40"
+          className={
+            inSameRoom
+              ? 'rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-tight text-white shadow-md whitespace-nowrap border border-white/40'
+              : 'hidden'
+          }
           style={{ backgroundColor: `${charDef.accentColor}eb` }}
         >
           {charDef.emoji} {displayName}

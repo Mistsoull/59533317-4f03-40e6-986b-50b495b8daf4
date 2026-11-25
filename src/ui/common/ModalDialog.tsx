@@ -96,11 +96,11 @@ export function ModalDialog({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
-      className={`${compact ? 'w-[min(90dvw,28rem)]' : 'w-[min(92dvw,46rem)]'} overflow-hidden`}
+      className={`${compact ? 'w-[min(86dvw,28rem)]' : 'w-[min(90dvw,46rem)]'} overflow-clip`}
       {...closedByAttr}
     >
       <header
-        className="flex items-center justify-between gap-3 border-b px-4 py-3 safe-x"
+        className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3"
         style={{
           background: 'var(--dialog-header)',
           borderColor: 'var(--border-soft)',
@@ -133,7 +133,7 @@ export function ModalDialog({
         </div>
       </header>
 
-      <div className="modal-scroll-area flex-1 overflow-y-auto p-4">{children}</div>
+      <div className="modal-scroll-area p-4">{children}</div>
     </dialog>
   );
 }

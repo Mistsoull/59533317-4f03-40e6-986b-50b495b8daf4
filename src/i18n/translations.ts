@@ -53,6 +53,9 @@ interface TranslationBundle {
   soundOn: string;
   soundOff: string;
   realLifeRecipesLabel: string;
+  fullscreenLabel: string;
+  fullscreenEnter: string;
+  fullscreenExit: string;
   enabledLabel: string;
   disabledLabel: string;
   signOutBtn: string;
@@ -191,6 +194,9 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     soundOn: 'Ses Açık',
     soundOff: 'Ses Kapalı',
     realLifeRecipesLabel: 'Gerçek Hayat Tarifleri',
+    fullscreenLabel: 'Tam Ekran Modu',
+    fullscreenEnter: 'Tam Ekran Yap',
+    fullscreenExit: 'Tam Ekrandan Çık',
     enabledLabel: 'Açık',
     disabledLabel: 'Kapalı',
     signOutBtn: 'Çıkış Yap / Profil Değiştir',
@@ -426,6 +432,9 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     soundOn: 'Ton an',
     soundOff: 'Ton aus',
     realLifeRecipesLabel: 'Echte Rezepte',
+    fullscreenLabel: 'Vollbildmodus',
+    fullscreenEnter: 'Vollbild an',
+    fullscreenExit: 'Vollbild aus',
     enabledLabel: 'An',
     disabledLabel: 'Aus',
     signOutBtn: 'Abmelden / Profil wechseln',

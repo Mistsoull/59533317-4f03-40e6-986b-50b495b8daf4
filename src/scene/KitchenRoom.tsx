@@ -75,31 +75,31 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
         <meshStandardMaterial color="#8c6244" roughness={0.85} />
       </mesh>
 
-      {/* Back Cutaway Wall (z = -3) */}
-      <mesh position={[0, 1.35, -3.08]} receiveShadow>
-        <boxGeometry args={[8.16, 2.7, 0.16]} />
+      {/* Back Cutaway Wall (z = -3, crisp 2.25m height for clean top-down angled framing) */}
+      <mesh position={[0, 1.125, -3.08]} receiveShadow>
+        <boxGeometry args={[8.16, 2.25, 0.16]} />
         <meshStandardMaterial color="#fff7ec" roughness={0.88} />
       </mesh>
       {/* Sage mint subway tile backsplash */}
-      <mesh position={[-0.45, 1.25, -2.99]} receiveShadow>
-        <boxGeometry args={[6.9, 0.72, 0.03]} />
+      <mesh position={[-0.45, 1.22, -2.99]} receiveShadow>
+        <boxGeometry args={[6.9, 0.68, 0.03]} />
         <meshStandardMaterial color="#cde6da" roughness={0.52} />
       </mesh>
 
       {/* Left Cutaway Wall (x = -4) */}
-      <mesh position={[-4.08, 1.35, 0]} receiveShadow>
-        <boxGeometry args={[0.16, 2.7, 6.16]} />
+      <mesh position={[-4.08, 1.125, 0]} receiveShadow>
+        <boxGeometry args={[0.16, 2.25, 6.16]} />
         <meshStandardMaterial color="#f8eee0" roughness={0.88} />
       </mesh>
 
       {/* Sunlit Kitchen Window on Left Wall */}
-      <group position={[-3.98, 1.65, -0.55]}>
+      <group position={[-3.98, 1.48, -0.55]}>
         <mesh>
-          <boxGeometry args={[0.06, 1.08, 1.72]} />
+          <boxGeometry args={[0.06, 0.96, 1.65]} />
           <meshStandardMaterial color="#8c5a34" roughness={0.7} />
         </mesh>
         <mesh position={[0.02, 0, 0]}>
-          <boxGeometry args={[0.03, 0.94, 1.56]} />
+          <boxGeometry args={[0.03, 0.82, 1.5]} />
           <meshStandardMaterial
             color="#bce7fb"
             emissive="#fff6da"
@@ -108,17 +108,17 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
           />
         </mesh>
         <mesh position={[0.04, 0, 0]}>
-          <boxGeometry args={[0.03, 0.96, 0.05]} />
+          <boxGeometry args={[0.03, 0.84, 0.05]} />
           <meshStandardMaterial color="#8c5a34" roughness={0.7} />
         </mesh>
         <mesh position={[0.04, 0, 0]}>
-          <boxGeometry args={[0.03, 0.05, 1.58]} />
+          <boxGeometry args={[0.03, 0.05, 1.52]} />
           <meshStandardMaterial color="#8c5a34" roughness={0.7} />
         </mesh>
       </group>
 
       {/* Decorative Wall Shelf stocked with REAL sculpted 3D food items (no plain cylinders!) */}
-      <group position={[-0.05, 1.94, -2.84]}>
+      <group position={[-0.05, 1.76, -2.84]}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[2.35, 0.07, 0.32]} />
           <meshStandardMaterial color="#b07d4f" roughness={0.68} />

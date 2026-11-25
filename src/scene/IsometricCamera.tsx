@@ -5,10 +5,10 @@ import type * as THREE from 'three';
 import type { RoomId } from '../config/kitchenLayout';
 
 /**
- * Dual-mode diagonal camera:
- *  - Kitchen: crisp true-45° diagonal isometric OrthographicCamera
+ * Dual-mode angled camera:
+ *  - Kitchen: high top-down angled diagonal OrthographicCamera (~49° pitch)
+ *    for crisp overview of floor, island, stations, and doorway
  *  - Market: immersive full-screen enclosed interior PerspectiveCamera angled diagonally
- *    so the shop fills 100% of the viewport edge-to-edge with zero outside void.
  */
 export function IsometricCamera({ room }: { room: RoomId }) {
   const orthoRef = useRef<THREE.OrthographicCamera>(null);
@@ -16,13 +16,12 @@ export function IsometricCamera({ room }: { room: RoomId }) {
   const { size } = useThree();
 
   const aspect = size.width / Math.max(1, size.height);
-  const kitchenZoom = Math.min(size.width / 9.2, size.height / 6.15);
-  // Adapt Market diagonal interior FOV by viewport aspect so Door + all 3 Stalls + Walls fill edge-to-edge
+  const kitchenZoom = Math.min(size.width / 9.8, size.height / 7.2);
   const marketFov = aspect < 1.35 ? 48 : aspect > 1.95 ? 36 : 42;
 
   useEffect(() => {
     if (room === 'kitchen' && orthoRef.current) {
-      orthoRef.current.lookAt(0, 0.65, -0.2);
+      orthoRef.current.lookAt(0, 0.35, -0.2);
       orthoRef.current.updateProjectionMatrix();
     } else if (room === 'market' && perspRef.current) {
       perspRef.current.lookAt(-0.35, 0.92, -1.35);
@@ -47,8 +46,8 @@ export function IsometricCamera({ room }: { room: RoomId }) {
     <OrthographicCamera
       ref={orthoRef}
       makeDefault
-      position={[12, 11.2, 12]}
-      zoom={Math.max(46, kitchenZoom)}
+      position={[9.0, 15.8, 10.2]}
+      zoom={Math.max(44, kitchenZoom)}
       near={0.1}
       far={60}
     />

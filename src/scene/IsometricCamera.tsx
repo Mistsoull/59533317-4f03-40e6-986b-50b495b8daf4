@@ -5,10 +5,10 @@ import type * as THREE from 'three';
 import type { RoomId } from '../config/kitchenLayout';
 
 /**
- * Dual-mode angled camera:
- *  - Kitchen: high top-down angled diagonal OrthographicCamera (~49° pitch)
- *    for crisp overview of floor, island, stations, and doorway
- *  - Market: immersive full-screen enclosed interior PerspectiveCamera angled diagonally
+ * Dual-mode camera:
+ *  - Kitchen: cozy isometric OrthographicCamera (kept as-is)
+ *  - Market: full-screen enclosed interior PerspectiveCamera from a high top-down
+ *    diagonal angle (~48° pitch) with zero outer void
  */
 export function IsometricCamera({ room }: { room: RoomId }) {
   const orthoRef = useRef<THREE.OrthographicCamera>(null);
@@ -16,15 +16,15 @@ export function IsometricCamera({ room }: { room: RoomId }) {
   const { size } = useThree();
 
   const aspect = size.width / Math.max(1, size.height);
-  const kitchenZoom = Math.min(size.width / 9.8, size.height / 7.2);
-  const marketFov = aspect < 1.35 ? 48 : aspect > 1.95 ? 36 : 42;
+  const kitchenZoom = Math.min(size.width / 9.3, size.height / 6.25);
+  const marketFov = aspect < 1.35 ? 50 : aspect > 1.95 ? 38 : 44;
 
   useEffect(() => {
     if (room === 'kitchen' && orthoRef.current) {
-      orthoRef.current.lookAt(0, 0.35, -0.2);
+      orthoRef.current.lookAt(0, 0.72, -0.22);
       orthoRef.current.updateProjectionMatrix();
     } else if (room === 'market' && perspRef.current) {
-      perspRef.current.lookAt(-0.35, 0.92, -1.35);
+      perspRef.current.lookAt(-0.3, 0.45, -0.85);
       perspRef.current.updateProjectionMatrix();
     }
   }, [room, size.width, size.height]);
@@ -34,7 +34,7 @@ export function IsometricCamera({ room }: { room: RoomId }) {
       <PerspectiveCamera
         ref={perspRef}
         makeDefault
-        position={[2.35, 5.0, 6.7]}
+        position={[2.6, 8.2, 5.6]}
         fov={marketFov}
         near={0.1}
         far={50}
@@ -46,8 +46,8 @@ export function IsometricCamera({ room }: { room: RoomId }) {
     <OrthographicCamera
       ref={orthoRef}
       makeDefault
-      position={[9.0, 15.8, 10.2]}
-      zoom={Math.max(44, kitchenZoom)}
+      position={[10.5, 10.2, 13.0]}
+      zoom={Math.max(46, kitchenZoom)}
       near={0.1}
       far={60}
     />

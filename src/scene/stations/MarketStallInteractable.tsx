@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { MARKET_STALLS, type MarketStallId } from '../../config/marketLayout';
+import { getTranslations } from '../../i18n/translations';
+import { useLanguageStore } from '../../store/useLanguageStore';
 import { ModelSlot } from '../assets/ModelSlot';
 
 interface MarketStallInteractableProps {
@@ -16,6 +18,8 @@ export function MarketStallInteractable({
   onSelectStall,
 }: MarketStallInteractableProps) {
   const def = MARKET_STALLS[stallId];
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
   const downPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const [sx, sy, sz] = def.position;
@@ -50,7 +54,6 @@ export function MarketStallInteractable({
       <group position={[sx, sy, sz]}>
         <ModelSlot assetId={stallAsset} placeholder={null} />
 
-        {/* Real sculpted 3D food products arranged on each stall! */}
         {stallId === 'produce' && (
           <>
             <group position={[-0.78, 0.78, 0.08]} scale={1.1}>
@@ -105,7 +108,6 @@ export function MarketStallInteractable({
           </>
         )}
 
-        {/* Generous touch hitbox */}
         <mesh
           position={[0, hy * 0.5, 0]}
           onPointerDown={handleDown}
@@ -116,7 +118,7 @@ export function MarketStallInteractable({
         </mesh>
 
         <Html
-          position={[0, stallId === 'produce' ? 1.72 : 1.98, 0.4]}
+          position={[0, stallId === 'produce' ? 1.72 : 1.98, 0.42]}
           center
           zIndexRange={[5, 0]}
           wrapperClass="pointer-events-none"
@@ -127,12 +129,11 @@ export function MarketStallInteractable({
               active ? '' : 'hidden'
             }`}
           >
-            {def.icon} {def.label}
+            {def.icon} {t.marketStalls[stallId].label}
           </div>
         </Html>
       </group>
 
-      {/* Floor interaction ring */}
       <mesh
         position={[ix, 0.018, iz]}
         rotation={[-Math.PI / 2, 0, 0]}

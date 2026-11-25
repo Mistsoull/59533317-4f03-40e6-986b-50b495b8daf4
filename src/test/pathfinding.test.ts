@@ -59,7 +59,7 @@ describe('pathfinding (2D grid A*)', () => {
   });
 
   it('finds a valid path to every 3D Market stall from entrance', () => {
-    const start = { x: -2.2, z: 1.85 };
+    const start = { x: -2.45, z: -0.85 };
     for (const stall of Object.values(MARKET_STALLS)) {
       const [gx, gz] = stall.interactionPoint;
       const path = findPath2D(

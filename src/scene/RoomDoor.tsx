@@ -2,18 +2,32 @@ import { useRef } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type { RoomDoorDef } from '../config/kitchenLayout';
+import { getTranslations } from '../i18n/translations';
+import { useLanguageStore } from '../store/useLanguageStore';
 
 interface RoomDoorProps {
   door: RoomDoorDef;
   accentColor: string;
   active: boolean;
+  /** 'left' wall (door faces +X, default in Kitchen) or 'back' wall (door faces +Z, Market entrance) */
+  wall?: 'left' | 'back';
   onSelectDoor: () => void;
 }
 
 /**
  * Walkable 3D doorway connecting the Kitchen and the Neighborhood Market.
  */
-export function RoomDoor({ door, accentColor, active, onSelectDoor }: RoomDoorProps) {
+export function RoomDoor({
+  door,
+  accentColor,
+  active,
+  wall = 'left',
+  onSelectDoor,
+}: RoomDoorProps) {
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
+  const label = door.targetRoom === 'market' ? t.goToMarketDoor : t.backToKitchenDoor;
+
   const downPosRef = useRef<{ x: number; y: number } | null>(null);
   const [dx, dy, dz] = door.position;
   const [ix, iz] = door.interactionPoint;
@@ -34,11 +48,14 @@ export function RoomDoor({ door, accentColor, active, onSelectDoor }: RoomDoorPr
     onSelectDoor();
   };
 
+  // Base geometry faces +X; rotate -Math.PI/2 around Y to face +Z on back wall
+  const doorRotY = wall === 'back' ? -Math.PI / 2 : 0;
+
   return (
     <group>
-      {/* Door frame mounted cleanly on left wall */}
       <group
         position={[dx, dy, dz]}
+        rotation={[0, doorRotY, 0]}
         onPointerDown={handleDown}
         onPointerUp={handleUp}
       >
@@ -77,18 +94,19 @@ export function RoomDoor({ door, accentColor, active, onSelectDoor }: RoomDoorPr
           style={{ pointerEvents: 'none' }}
         >
           <div
-            className={`rounded-full border border-emerald-400/50 bg-emerald-700/90 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-md whitespace-nowrap ${
-              active ? '' : 'hidden'
-            }`}
+            className={`rounded-full border border-white/40 px-2.5 py-0.5 text-[11px] font-extrabold text-white shadow-md whitespace-nowrap ${
+              door.targetRoom === 'market' ? 'bg-emerald-600/95' : 'bg-[#e07a5f]/95'
+            } ${active ? '' : 'hidden'}`}
           >
-            {door.icon} {door.label}
+            {door.icon} {label}
           </div>
         </Html>
       </group>
 
       {/* Cozy welcome mat on floor at doorway */}
       <mesh
-        position={[ix + 0.1, 0.014, iz]}
+        position={[wall === 'back' ? ix : ix + 0.1, 0.014, wall === 'back' ? iz - 0.2 : iz]}
+        rotation={[0, doorRotY, 0]}
         receiveShadow
         onPointerDown={handleDown}
         onPointerUp={handleUp}
@@ -102,8 +120,13 @@ export function RoomDoor({ door, accentColor, active, onSelectDoor }: RoomDoorPr
         onPointerDown={handleDown}
         onPointerUp={handleUp}
       >
-        <ringGeometry args={[0.22, 0.3, 24]} />
-        <meshBasicMaterial color="#40916c" transparent opacity={0.55} depthWrite={false} />
+        <ringGeometry args={[0.24, 0.34, 24]} />
+        <meshBasicMaterial
+          color={door.targetRoom === 'market' ? '#40916c' : '#e07a5f'}
+          transparent
+          opacity={0.6}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );

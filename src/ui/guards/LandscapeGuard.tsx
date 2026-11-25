@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RotateCw } from 'lucide-react';
+import { getTranslations } from '../../i18n/translations';
+import { useLanguageStore } from '../../store/useLanguageStore';
 
 function isPortraitViewport(): boolean {
   if (typeof window === 'undefined') return false;
@@ -8,6 +10,8 @@ function isPortraitViewport(): boolean {
 
 export function LandscapeGuard() {
   const [isPortrait, setIsPortrait] = useState(isPortraitViewport);
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
 
   useEffect(() => {
     const update = () => setIsPortrait(isPortraitViewport());
@@ -48,10 +52,8 @@ export function LandscapeGuard() {
         />
       </div>
       <div className="max-w-xs space-y-2">
-        <h1 className="text-xl font-extrabold tracking-tight">Telefonunu Yatay Çevir</h1>
-        <p className="text-sm ui-muted">
-          Bizim Mutfak yalnızca yatay (landscape) modda oynanır. Cihazını yan çevirdiğinde mutfak otomatik açılacak.
-        </p>
+        <h1 className="text-xl font-extrabold tracking-tight">{t.rotateTitle}</h1>
+        <p className="text-sm ui-muted">{t.rotateDesc}</p>
       </div>
     </div>
   );

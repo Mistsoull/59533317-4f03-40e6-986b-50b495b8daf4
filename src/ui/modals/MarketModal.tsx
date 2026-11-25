@@ -5,8 +5,10 @@ import { MARKET_STALLS, MARKET_STALL_LIST, type MarketStallId } from '../../conf
 import { RECIPE_LIST } from '../../config/recipes';
 import { kitchenAudio } from '../../domain/audio';
 import { needsPantrySupport } from '../../domain/stationRules';
+import { getTranslations } from '../../i18n/translations';
 import { buyIngredient, claimPantrySupport } from '../../services/supabase/homeRepository';
 import { useGameStore } from '../../store/useGameStore';
+import { useLanguageStore } from '../../store/useLanguageStore';
 import { ModalDialog } from '../common/ModalDialog';
 
 export function MarketModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -15,6 +17,8 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
   const activeStall = useGameStore((s) => s.activeMarketStall);
   const openMarketStall = useGameStore((s) => s.openMarketStall);
   const pushToast = useGameStore((s) => s.pushToast);
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const canClaimSupport = needsPantrySupport(coins, inventory, RECIPE_LIST);
@@ -27,12 +31,12 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
           .filter((x): x is NonNullable<typeof x> => Boolean(x))
       : MARKET_ITEMS;
 
-  const handleBuy = async (itemId: string, name: string, price: number) => {
+  const handleBuy = async (itemId: string, displayName: string, price: number) => {
     if (busyId) return;
     kitchenAudio.unlockSync();
     if (coins < price) {
       kitchenAudio.playError();
-      pushToast('Yeterli coin yok! Yemek pişirerek coin kazanabilirsin.', 'warn');
+      pushToast(t.notEnoughCoins, 'warn');
       return;
     }
 
@@ -42,10 +46,10 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
 
     if (res.ok) {
       kitchenAudio.playCoin();
-      pushToast(`${name} alındı ve evdeki buzdolabına gönderildi!`, 'success');
+      pushToast(t.boughtToast(displayName), 'success');
     } else {
       kitchenAudio.playError();
-      pushToast('Satın alma tamamlanamadı.', 'warn');
+      pushToast(t.buyFailedToast, 'warn');
     }
   };
 
@@ -55,13 +59,16 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
     setBusyId(null);
     if (res.ok) {
       kitchenAudio.playSuccess();
-      pushToast('+50 Coin Mutfak Destek Paketi eklendi!', 'success');
+      pushToast(t.pantrySupportToast, 'success');
     }
   };
 
   const tabs: Array<{ id: MarketStallId | 'all'; label: string }> = [
-    { id: 'all', label: '🛒 Tümü' },
-    ...MARKET_STALL_LIST.map((st) => ({ id: st.id, label: `${st.icon} ${st.label}` })),
+    { id: 'all', label: t.marketAllTab },
+    ...MARKET_STALL_LIST.map((st) => ({
+      id: st.id,
+      label: `${st.icon} ${t.marketStalls[st.id].label}`,
+    })),
   ];
 
   return (
@@ -69,15 +76,14 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
       open={open}
       onClose={onClose}
       icon={currentStallDef?.icon ?? '🛒'}
-      title={currentStallDef?.label ?? 'Mahalle Marketi'}
-      subtitle={currentStallDef?.subtitle ?? 'Alınan malzemeler anında ortak buzdolabına gider.'}
+      title={currentStallDef ? t.marketStalls[currentStallDef.id].label : t.marketTitle}
+      subtitle={currentStallDef ? t.marketStalls[currentStallDef.id].subtitle : t.marketSubtitle}
       headerRight={
         <div className="rounded-xl border border-amber-500/35 bg-amber-500/15 px-3 py-1.5 text-sm font-extrabold text-amber-700 dark:text-amber-200">
           🪙 {coins}
         </div>
       }
     >
-      {/* Stall aisle tabs */}
       <div className="mb-3 flex flex-wrap gap-1.5">
         {tabs.map((tab) => {
           const active = activeStall === tab.id;
@@ -105,7 +111,7 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
         <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/35 bg-emerald-500/12 px-4 py-2.5">
           <div className="flex items-center gap-2 text-xs font-semibold">
             <Gift className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
-            <span>Kasa ve dolap neredeyse boş! Ücretsiz destek paketi alabilirsin.</span>
+            <span>{t.pantrySupportText}</span>
           </div>
           <button
             type="button"
@@ -113,7 +119,7 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
             onClick={handleClaimSupport}
             className="shrink-0 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-extrabold text-white transition active:scale-95"
           >
-            +50 Coin Al
+            {t.pantrySupportBtn}
           </button>
         </div>
       )}
@@ -122,6 +128,7 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
         {visibleItems.map((item) => {
           const stock = inventory[item.id] ?? 0;
           const affordable = coins >= item.price;
+          const label = t.ingredients[item.id] ?? item.name;
           return (
             <div
               key={item.id}
@@ -132,18 +139,18 @@ export function MarketModal({ open, onClose }: { open: boolean; onClose: () => v
                   {item.icon}
                 </span>
                 <div>
-                  <p className="text-xs font-extrabold">{item.name}</p>
-                  <p className="text-[11px] ui-muted">Dolapta: ×{stock}</p>
+                  <p className="text-xs font-extrabold">{label}</p>
+                  <p className="text-[11px] ui-muted">{t.inFridgeCount(stock)}</p>
                 </div>
               </div>
 
               <button
                 type="button"
                 disabled={!affordable || busyId === item.id}
-                onClick={() => handleBuy(item.id, item.name, item.price)}
+                onClick={() => handleBuy(item.id, label, item.price)}
                 className="w-full rounded-xl bg-[#e07a5f] px-3 py-2 text-xs font-extrabold text-white shadow-xs transition active:scale-95 disabled:opacity-40"
               >
-                {busyId === item.id ? 'Alınıyor...' : `+1 Al · 🪙 ${item.price}`}
+                {busyId === item.id ? t.buying : t.buyOne(item.price)}
               </button>
             </div>
           );

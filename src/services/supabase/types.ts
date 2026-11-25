@@ -41,6 +41,7 @@ export interface HomeSnapshot {
 
 export interface BroadcastPlayerPayload {
   profileId: ProfileId;
+  sessionNonce: string;
   room: RoomId;
   x: number;
   z: number;
@@ -57,4 +58,9 @@ export interface PresencePayload {
   room: RoomId;
   onlineAt: string;
   activeStationId: StationId | null;
+  /** Ephemeral initial snapshot so late joiners immediately see stationary partners (never stored in DB) */
+  x?: number;
+  z?: number;
+  rotY?: number;
+  anim?: AnimState;
 }

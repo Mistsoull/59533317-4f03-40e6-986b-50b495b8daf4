@@ -1,32 +1,54 @@
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
-import { OrthographicCamera } from '@react-three/drei';
+import { OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type * as THREE from 'three';
+import type { RoomId } from '../config/kitchenLayout';
 
 /**
- * Tight isometric orthographic camera that fills the landscape viewport
- * across both widescreen desktops and mobile phones (iPhone 17 Pro / Galaxy S23)
- * with minimal wasted margin around the 8m x 6m room.
+ * Dual-mode camera:
+ *  - Kitchen: crisp isometric OrthographicCamera tightly framing the 8m x 6m kitchen
+ *  - Market: immersive interior PerspectiveCamera placed INSIDE the 3-walled grocery shop
+ *    so the shop fills 100% of the viewport edge-to-edge with zero outside void.
  */
-export function IsometricCamera() {
-  const camRef = useRef<THREE.OrthographicCamera>(null);
+export function IsometricCamera({ room }: { room: RoomId }) {
+  const orthoRef = useRef<THREE.OrthographicCamera>(null);
+  const perspRef = useRef<THREE.PerspectiveCamera>(null);
   const { size } = useThree();
 
-  // Tightly fit the projected room while keeping back-wall labels cleanly below the top HUD
-  const zoom = Math.min(size.width / 9.3, size.height / 6.25);
+  const aspect = size.width / Math.max(1, size.height);
+  const kitchenZoom = Math.min(size.width / 9.3, size.height / 6.25);
+  // Adapt Market interior FOV by viewport aspect so Door + all 3 Stalls + Walls fill 100% edge-to-edge
+  const marketFov = aspect < 1.35 ? 48 : aspect > 1.95 ? 36 : 42;
 
   useEffect(() => {
-    if (!camRef.current) return;
-    camRef.current.lookAt(0, 0.72, -0.22);
-    camRef.current.updateProjectionMatrix();
-  }, [size.width, size.height]);
+    if (room === 'kitchen' && orthoRef.current) {
+      orthoRef.current.lookAt(0, 0.72, -0.22);
+      orthoRef.current.updateProjectionMatrix();
+    } else if (room === 'market' && perspRef.current) {
+      perspRef.current.lookAt(-0.1, 0.95, -1.4);
+      perspRef.current.updateProjectionMatrix();
+    }
+  }, [room, size.width, size.height]);
+
+  if (room === 'market') {
+    return (
+      <PerspectiveCamera
+        ref={perspRef}
+        makeDefault
+        position={[0.0, 5.15, 7.15]}
+        fov={marketFov}
+        near={0.1}
+        far={50}
+      />
+    );
+  }
 
   return (
     <OrthographicCamera
-      ref={camRef}
+      ref={orthoRef}
       makeDefault
       position={[10.5, 10.2, 13.0]}
-      zoom={Math.max(46, zoom)}
+      zoom={Math.max(46, kitchenZoom)}
       near={0.1}
       far={60}
     />

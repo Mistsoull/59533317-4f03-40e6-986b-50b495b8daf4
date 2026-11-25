@@ -3,6 +3,7 @@ import { KITCHEN_STATIONS, type RoomId, type StationId } from './config/kitchenL
 import { MARKET_SPAWN, type MarketStallId } from './config/marketLayout';
 import { PROFILES, type ProfileId } from './config/profiles';
 import { kitchenAudio } from './domain/audio';
+import { getTranslations } from './i18n/translations';
 import { restoreAuthSession, signOutProfile } from './services/supabase/auth';
 import {
   acquireStationLock,
@@ -13,6 +14,7 @@ import {
 import { kitchenRealtime } from './services/supabase/realtimeSync';
 import { playerMotionStore } from './store/playerMotionStore';
 import { useGameStore } from './store/useGameStore';
+import { useLanguageStore } from './store/useLanguageStore';
 import { useSessionStore, type BackendMode } from './store/useSessionStore';
 import { KitchenCanvas } from './scene/KitchenCanvas';
 import { ProfilePinGate } from './ui/auth/ProfilePinGate';
@@ -24,6 +26,7 @@ import { CookingMiniGame } from './ui/minigames/CookingMiniGame';
 import { FridgeModal } from './ui/modals/FridgeModal';
 import { MarketModal } from './ui/modals/MarketModal';
 import { RecipeBookModal } from './ui/modals/RecipeBookModal';
+import { SettingsModal } from './ui/modals/SettingsModal';
 
 export default function App() {
   const [booting, setBooting] = useState(true);
@@ -31,7 +34,6 @@ export default function App() {
   const setSession = useSessionStore((s) => s.setSession);
   const resetSession = useSessionStore((s) => s.resetSession);
 
-  const currentRoom = useGameStore((s) => s.currentRoom);
   const setCurrentRoom = useGameStore((s) => s.setCurrentRoom);
   const openMarketStall = useGameStore((s) => s.openMarketStall);
   const activeOverlay = useGameStore((s) => s.activeOverlay);
@@ -39,6 +41,9 @@ export default function App() {
   const setActiveOverlay = useGameStore((s) => s.setActiveOverlay);
   const setHeldLockStation = useGameStore((s) => s.setHeldLockStation);
   const pushToast = useGameStore((s) => s.pushToast);
+
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
 
   // Global iOS Safari Web Audio unlock on first touch/pointer interaction
   useEffect(() => {
@@ -131,16 +136,13 @@ export default function App() {
       setCurrentRoom(targetRoom);
 
       const [sx, sz] =
-        targetRoom === 'market'
-          ? MARKET_SPAWN[profileId]
-          : [-2.2, 1.85];
+        targetRoom === 'market' ? MARKET_SPAWN[profileId] : [-2.2, 1.85];
       playerMotionStore.resetLocal(sx, sz, targetRoom);
       kitchenRealtime.updatePresenceRoom(targetRoom);
       kitchenAudio.playFlip();
+      const curT = getTranslations(useLanguageStore.getState().lang);
       pushToast(
-        targetRoom === 'market'
-          ? '🛒 Mahalle Marketine geldin! Tezgahlara dokunup alışveriş yap.'
-          : '🏠 Mutfağa döndün!',
+        targetRoom === 'market' ? curT.enteredMarketToast : curT.enteredKitchenToast,
         'info',
       );
     },
@@ -161,12 +163,13 @@ export default function App() {
       const res = await acquireStationLock(stationId, profileId, 25);
       if (!res.acquired) {
         kitchenAudio.playError();
+        const curT = getTranslations(useLanguageStore.getState().lang);
         const locker =
           res.lockedBy
             ? useGameStore.getState().profiles[res.lockedBy]?.displayName ??
               PROFILES[res.lockedBy].defaultName
-            : 'Partnerin';
-        pushToast(`🔒 ${locker} şu an ${def.label} istasyonunu kullanıyor!`, 'warn');
+            : 'Partner';
+        pushToast(curT.stationLockedToast(locker, curT.stations[stationId].label), 'warn');
         return;
       }
 
@@ -204,7 +207,7 @@ export default function App() {
         className="flex h-dvh w-dvw items-center justify-center text-sm font-bold"
         style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
       >
-        🍳 Mutfak hazırlanıyor...
+        {t.loadingKitchen}
       </div>
     );
   }
@@ -227,24 +230,12 @@ export default function App() {
             onEnterRoom={(room) => void handleEnterRoom(room)}
           />
 
-          <TopHudBar
-            profileId={profileId}
-            onEnterRoom={(room) => void handleEnterRoom(room)}
-            onSignOut={() => void handleSignOut()}
-          />
+          <TopHudBar profileId={profileId} />
           <ToastLayer />
-
-          {/* Compact bottom hint pill */}
-          <div className="ui-card pointer-events-none fixed bottom-2 left-3 z-10 rounded-xl px-3 py-1 text-[11px] font-semibold shadow-sm backdrop-blur-xs safe-bottom safe-x">
-            {currentRoom === 'kitchen'
-              ? '👆 Zemine dokun yürü · İstasyonlara veya Market kapısına dokun'
-              : '🛒 Tezgahlara dokun alışveriş yap · Kapıdan mutfağa dön'}
-          </div>
 
           <FridgeModal
             open={activeOverlay === 'fridge'}
             onClose={() => setActiveOverlay(null)}
-            onGoToMarket={() => void handleEnterRoom('market')}
           />
           <MarketModal
             open={activeOverlay === 'market_stall'}
@@ -255,17 +246,20 @@ export default function App() {
             profileId={profileId}
             onClose={() => setActiveOverlay(null)}
           />
+          <SettingsModal
+            open={activeOverlay === 'settings'}
+            onClose={() => setActiveOverlay(null)}
+            onSignOut={() => void handleSignOut()}
+          />
           <ChoppingMiniGame
             open={activeOverlay === 'cutting_board'}
             profileId={profileId}
             onClose={() => void releaseActiveStation()}
-            onGoToMarket={() => void handleEnterRoom('market')}
           />
           <CookingMiniGame
             open={activeOverlay === 'stove'}
             profileId={profileId}
             onClose={() => void releaseActiveStation()}
-            onGoToMarket={() => void handleEnterRoom('market')}
           />
         </div>
       )}

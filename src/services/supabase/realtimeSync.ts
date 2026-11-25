@@ -3,6 +3,7 @@ import type { CharacterId } from '../../config/characters';
 import { PROFILES, type ProfileId } from '../../config/profiles';
 import type { RecipeId } from '../../config/recipes';
 import type { RoomId, StationId } from '../../config/kitchenLayout';
+import { getTranslations } from '../../i18n/translations';
 import { getSupabaseClient } from './client';
 import type {
   AnimState,
@@ -12,23 +13,32 @@ import type {
 } from './types';
 import { playerMotionStore } from '../../store/playerMotionStore';
 import { useGameStore } from '../../store/useGameStore';
+import { useLanguageStore } from '../../store/useLanguageStore';
 import { useSessionStore } from '../../store/useSessionStore';
 
 const HOME_CHANNEL_NAME = 'kitchen:home';
 const LOCAL_BC_NAME = 'kitchen:home:local';
-const BROADCAST_INTERVAL_MS = 66; // ~15 Hz throttle
+const BROADCAST_INTERVAL_MS = 66; // ~15 Hz throttle when moving
+const IDLE_HEARTBEAT_MS = 3000; // Low-rate state sync so late joiners never miss stationary partners
 
 type LocalChannelMsg =
   | { type: 'player_state'; payload: BroadcastPlayerPayload }
+  | { type: 'sync_request'; from: ProfileId }
   | { type: 'presence_ping'; payload: PresencePayload }
   | { type: 'presence_leave'; profileId: ProfileId }
   | { type: 'home_snapshot'; payload: HomeSnapshot };
+
+function makeNonce(): string {
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 class KitchenRealtimeSync {
   private channel: RealtimeChannel | null = null;
   private isSupabaseSubscribed = false;
   private localChannel: BroadcastChannel | null = null;
   private localPresenceTimer: number | null = null;
+  private idleHeartbeatTimer: number | null = null;
+  private syncRetryTimer: number | null = null;
   private localPartnerLastSeen = 0;
 
   private myProfileId: ProfileId | null = null;
@@ -36,6 +46,7 @@ class KitchenRealtimeSync {
   private myCharacterId: CharacterId = 'bubu';
   private myRoom: RoomId = 'kitchen';
   private activeStationId: StationId | null = null;
+  private sessionNonce = makeNonce();
 
   private seq = 0;
   private lastBroadcastAt = 0;
@@ -52,6 +63,7 @@ class KitchenRealtimeSync {
     this.myCharacterId = characterId;
     this.myRoom = useGameStore.getState().currentRoom;
     this.activeStationId = null;
+    this.sessionNonce = makeNonce();
     this.seq = 0;
     this.lastSentX = Number.NaN;
 
@@ -63,10 +75,68 @@ class KitchenRealtimeSync {
     }
   }
 
+  private ensurePartnerInOnlineProfiles(
+    partnerId: ProfileId,
+    room: RoomId,
+  ): void {
+    const existing = useSessionStore.getState().onlineProfiles;
+    const current = existing[partnerId];
+    if (current && current.room === room) return;
+
+    const gameProf = useGameStore.getState().profiles[partnerId];
+    const nextEntry: PresencePayload = current
+      ? { ...current, room }
+      : {
+          profileId: partnerId,
+          displayName: gameProf?.displayName ?? PROFILES[partnerId].defaultName,
+          characterId: gameProf?.characterId ?? PROFILES[partnerId].defaultCharacter,
+          room,
+          onlineAt: new Date().toISOString(),
+          activeStationId: null,
+        };
+
+    useSessionStore.getState().setOnlineProfiles({
+      ...existing,
+      [partnerId]: nextEntry,
+    });
+  }
+
+  private buildPresencePayload(): PresencePayload {
+    const loc = playerMotionStore.local;
+    return {
+      profileId: this.myProfileId!,
+      displayName: this.myDisplayName,
+      characterId: this.myCharacterId,
+      room: this.myRoom,
+      onlineAt: new Date().toISOString(),
+      activeStationId: this.activeStationId,
+      x: Math.round(loc.x * 1000) / 1000,
+      z: Math.round(loc.z * 1000) / 1000,
+      rotY: Math.round(loc.rotY * 1000) / 1000,
+      anim: loc.anim,
+    };
+  }
+
+  private requestSyncFromPartners(): void {
+    if (!this.myProfileId) return;
+    if (this.channel && this.isSupabaseSubscribed) {
+      void this.channel.send({
+        type: 'broadcast',
+        event: 'sync_request',
+        payload: { from: this.myProfileId },
+      });
+    } else if (this.localChannel) {
+      this.localChannel.postMessage({
+        type: 'sync_request',
+        from: this.myProfileId,
+      } satisfies LocalChannelMsg);
+    }
+  }
+
   private connectSupabase(
     profileId: ProfileId,
-    displayName: string,
-    characterId: CharacterId,
+    _displayName: string,
+    _characterId: CharacterId,
   ): void {
     const supabase = getSupabaseClient();
     if (!supabase) return;
@@ -84,53 +154,76 @@ class KitchenRealtimeSync {
     channel.on('broadcast', { event: 'player_state' }, ({ payload }) => {
       const data = payload as BroadcastPlayerPayload;
       if (!data || data.profileId === this.myProfileId) return;
+      const room = data.room ?? 'kitchen';
       playerMotionStore.applyRemotePacket(
         data.profileId,
-        data.room ?? 'kitchen',
+        data.sessionNonce ?? 'legacy',
+        room,
         data.x,
         data.z,
         data.rotY,
         data.anim,
         data.seq,
       );
+      // Self-heal onlineProfiles so RemotePlayer is guaranteed visible even if Presence lags
+      this.ensurePartnerInOnlineProfiles(data.profileId, room);
     });
 
-    // 2. Realtime Presence: online status, room & character
+    // 1b. Handshake: late joiner asks already-connected partner to reply immediately!
+    channel.on('broadcast', { event: 'sync_request' }, ({ payload }) => {
+      const data = payload as { from?: ProfileId } | undefined;
+      if (!data?.from || data.from === this.myProfileId) return;
+      this.sendImmediateState();
+      this.trackPresence();
+    });
+
+    // 2. Realtime Presence: online status, room, character & initial coordinates snapshot
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState<PresencePayload>();
       const map: Partial<Record<ProfileId, PresencePayload>> = {};
-      let partnerOnline = false;
-      let partnerId: ProfileId | null = null;
-      let partnerRoom: RoomId = 'kitchen';
+      let partnerEntry: PresencePayload | null = null;
 
       for (const entries of Object.values(state)) {
         const latest = entries[entries.length - 1];
-        if (!latest) continue;
+        if (!latest || !latest.profileId) continue;
         map[latest.profileId] = latest;
         if (latest.profileId !== this.myProfileId) {
-          partnerOnline = true;
-          partnerId = latest.profileId;
-          partnerRoom = latest.room ?? 'kitchen';
+          partnerEntry = latest;
         }
       }
 
       useSessionStore.getState().setOnlineProfiles(map);
-      playerMotionStore.setRemoteActive(partnerOnline, partnerId, partnerRoom);
+      if (partnerEntry) {
+        playerMotionStore.seedRemoteFromPresence(
+          partnerEntry.profileId,
+          partnerEntry.room ?? 'kitchen',
+          partnerEntry.x,
+          partnerEntry.z,
+          partnerEntry.rotY,
+          partnerEntry.anim,
+        );
+      } else {
+        playerMotionStore.setRemoteActive(false, null);
+      }
     });
 
     channel.on('presence', { event: 'join' }, ({ newPresences }) => {
+      const t = getTranslations(useLanguageStore.getState().lang);
       for (const p of newPresences as unknown as PresencePayload[]) {
         if (p.profileId && p.profileId !== this.myProfileId) {
-          useGameStore.getState().pushToast(`${p.displayName} oyuna katıldı!`, 'success');
+          useGameStore.getState().pushToast(t.partnerJoinedToast(p.displayName), 'success');
+          // Reply right away and again after 500ms so late joiner never misses our position
           this.sendImmediateState();
+          window.setTimeout(() => this.sendImmediateState(), 500);
         }
       }
     });
 
     channel.on('presence', { event: 'leave' }, ({ leftPresences }) => {
+      const t = getTranslations(useLanguageStore.getState().lang);
       for (const p of leftPresences as unknown as PresencePayload[]) {
         if (p.profileId && p.profileId !== this.myProfileId) {
-          useGameStore.getState().pushToast(`${p.displayName} ayrıldı.`, 'info');
+          useGameStore.getState().pushToast(t.partnerLeftToast(p.displayName), 'info');
         }
       }
     });
@@ -234,15 +327,19 @@ class KitchenRealtimeSync {
       if (status === 'SUBSCRIBED') {
         this.isSupabaseSubscribed = true;
         useSessionStore.getState().setConnectionStatus('connected');
-        await channel.track({
-          profileId,
-          displayName,
-          characterId,
-          room: this.myRoom,
-          onlineAt: new Date().toISOString(),
-          activeStationId: this.activeStationId,
-        } satisfies PresencePayload);
+        await channel.track(this.buildPresencePayload());
         this.sendImmediateState();
+        // Ask any already-connected partner to send their current position immediately!
+        this.requestSyncFromPartners();
+        this.syncRetryTimer = window.setTimeout(() => {
+          if (!playerMotionStore.remote.initialized) {
+            this.requestSyncFromPartners();
+          }
+        }, 1200);
+        // Gentle low-frequency heartbeat (0.33 Hz, Broadcast only, 0 DB writes)
+        this.idleHeartbeatTimer = window.setInterval(() => {
+          this.sendImmediateState();
+        }, IDLE_HEARTBEAT_MS);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         this.isSupabaseSubscribed = false;
         useSessionStore.getState().setConnectionStatus('disconnected');
@@ -254,19 +351,11 @@ class KitchenRealtimeSync {
 
   private connectLocalChannel(
     profileId: ProfileId,
-    displayName: string,
-    characterId: CharacterId,
+    _displayName: string,
+    _characterId: CharacterId,
   ): void {
     useSessionStore.getState().setConnectionStatus('connected');
-    const myPresence: PresencePayload = {
-      profileId,
-      displayName,
-      characterId,
-      room: this.myRoom,
-      onlineAt: new Date().toISOString(),
-      activeStationId: null,
-    };
-    useSessionStore.getState().setOnlineProfiles({ [profileId]: myPresence });
+    useSessionStore.getState().setOnlineProfiles({ [profileId]: this.buildPresencePayload() });
 
     if (typeof BroadcastChannel === 'undefined') return;
 
@@ -281,15 +370,22 @@ class KitchenRealtimeSync {
         const d = msg.payload;
         if (d.profileId === this.myProfileId) return;
         this.localPartnerLastSeen = Date.now();
+        const room = d.room ?? 'kitchen';
         playerMotionStore.applyRemotePacket(
           d.profileId,
-          d.room ?? 'kitchen',
+          d.sessionNonce ?? 'local',
+          room,
           d.x,
           d.z,
           d.rotY,
           d.anim,
           d.seq,
         );
+        this.ensurePartnerInOnlineProfiles(d.profileId, room);
+      } else if (msg.type === 'sync_request') {
+        if (msg.from === this.myProfileId) return;
+        this.sendImmediateState();
+        this.trackPresence();
       } else if (msg.type === 'presence_ping') {
         const p = msg.payload;
         if (p.profileId === this.myProfileId) return;
@@ -299,9 +395,17 @@ class KitchenRealtimeSync {
           ...useSessionStore.getState().onlineProfiles,
           [p.profileId]: p,
         });
-        playerMotionStore.setRemoteActive(true, p.profileId, p.room ?? 'kitchen');
+        playerMotionStore.seedRemoteFromPresence(
+          p.profileId,
+          p.room ?? 'kitchen',
+          p.x,
+          p.z,
+          p.rotY,
+          p.anim,
+        );
         if (!wasOnline) {
-          useGameStore.getState().pushToast(`${p.displayName} (2. sekme) katıldı!`, 'success');
+          const t = getTranslations(useLanguageStore.getState().lang);
+          useGameStore.getState().pushToast(t.partnerJoinedToast(p.displayName), 'success');
           this.sendImmediateState();
         }
       } else if (msg.type === 'presence_leave') {
@@ -317,15 +421,10 @@ class KitchenRealtimeSync {
 
     const emitPresence = () => {
       if (!this.myProfileId || !this.localChannel) return;
-      const payload: PresencePayload = {
-        profileId: this.myProfileId,
-        displayName: this.myDisplayName,
-        characterId: this.myCharacterId,
-        room: this.myRoom,
-        onlineAt: new Date().toISOString(),
-        activeStationId: this.activeStationId,
-      };
-      this.localChannel.postMessage({ type: 'presence_ping', payload } satisfies LocalChannelMsg);
+      this.localChannel.postMessage({
+        type: 'presence_ping',
+        payload: this.buildPresencePayload(),
+      } satisfies LocalChannelMsg);
 
       if (this.localPartnerLastSeen > 0 && Date.now() - this.localPartnerLastSeen > 6000) {
         const partnerId: ProfileId = this.myProfileId === 'p1' ? 'p2' : 'p1';
@@ -338,21 +437,15 @@ class KitchenRealtimeSync {
     };
 
     emitPresence();
+    this.requestSyncFromPartners();
     this.localPresenceTimer = window.setInterval(emitPresence, 2000);
   }
 
   private trackPresence(): void {
     if (!this.myProfileId) return;
-    const payload: PresencePayload = {
-      profileId: this.myProfileId,
-      displayName: this.myDisplayName,
-      characterId: this.myCharacterId,
-      room: this.myRoom,
-      onlineAt: new Date().toISOString(),
-      activeStationId: this.activeStationId,
-    };
+    const payload = this.buildPresencePayload();
 
-    if (this.channel) {
+    if (this.channel && this.isSupabaseSubscribed) {
       void this.channel.track(payload);
     } else if (this.localChannel) {
       this.localChannel.postMessage({ type: 'presence_ping', payload } satisfies LocalChannelMsg);
@@ -375,10 +468,6 @@ class KitchenRealtimeSync {
     this.maybeBroadcastMotion(loc.room, loc.x, loc.z, loc.rotY, loc.anim, true);
   }
 
-  /**
-   * Throttled (~15 Hz) Realtime Broadcast publisher.
-   * Only emits when room/position/rotation/animation changed, plus immediate flush on stop.
-   */
   public maybeBroadcastMotion(
     room: RoomId,
     x: number,
@@ -409,6 +498,7 @@ class KitchenRealtimeSync {
 
     const payload: BroadcastPlayerPayload = {
       profileId: this.myProfileId,
+      sessionNonce: this.sessionNonce,
       room,
       x: Math.round(x * 1000) / 1000,
       z: Math.round(z * 1000) / 1000,
@@ -445,6 +535,14 @@ class KitchenRealtimeSync {
     if (this.localPresenceTimer !== null) {
       window.clearInterval(this.localPresenceTimer);
       this.localPresenceTimer = null;
+    }
+    if (this.idleHeartbeatTimer !== null) {
+      window.clearInterval(this.idleHeartbeatTimer);
+      this.idleHeartbeatTimer = null;
+    }
+    if (this.syncRetryTimer !== null) {
+      window.clearTimeout(this.syncRetryTimer);
+      this.syncRetryTimer = null;
     }
 
     if (this.localChannel) {

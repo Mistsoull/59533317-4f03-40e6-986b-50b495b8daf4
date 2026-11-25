@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { ShoppingBag } from 'lucide-react';
 import type { IngredientDef } from '../../config/ingredients';
 import type { ProfileId } from '../../config/profiles';
 import { kitchenAudio } from '../../domain/audio';
 import { getPreppableRawItems } from '../../domain/stationRules';
+import { getTranslations } from '../../i18n/translations';
 import { completePrep } from '../../services/supabase/homeRepository';
 import { useGameStore } from '../../store/useGameStore';
+import { useLanguageStore } from '../../store/useLanguageStore';
 import { ModalDialog } from '../common/ModalDialog';
 
 interface ChoppingMiniGameProps {
   open: boolean;
   profileId: ProfileId;
   onClose: () => void;
-  onGoToMarket: () => void;
 }
 
 const TARGET_SLICES = 5;
@@ -23,10 +23,11 @@ export function ChoppingMiniGame({
   open,
   profileId,
   onClose,
-  onGoToMarket,
 }: ChoppingMiniGameProps) {
   const inventory = useGameStore((s) => s.inventory);
   const pushToast = useGameStore((s) => s.pushToast);
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
 
   const [activePair, setActivePair] = useState<{
     raw: IngredientDef;
@@ -90,7 +91,7 @@ export function ChoppingMiniGame({
       kitchenAudio.playChop(true);
       const nextSlices = slices + 1;
       setSlices(nextSlices);
-      setFeedback('Harika kesim! ✨');
+      setFeedback(t.chopGreat);
 
       if (nextSlices >= TARGET_SLICES) {
         setSaving(true);
@@ -98,17 +99,23 @@ export function ChoppingMiniGame({
         setSaving(false);
         if (res.ok) {
           kitchenAudio.playSuccess();
-          pushToast(`${activePair.target.icon} ${activePair.target.name} hazır!`, 'success');
+          pushToast(
+            t.preppedToast(
+              activePair.target.icon,
+              t.ingredients[activePair.target.id] ?? activePair.target.name,
+            ),
+            'success',
+          );
           onClose();
         } else {
           kitchenAudio.playError();
-          pushToast('Ham malzeme stoğu kalmadı.', 'warn');
+          pushToast(t.missingRawToast, 'warn');
           setActivePair(null);
         }
       }
     } else {
       kitchenAudio.playChop(false);
-      setFeedback('Yeşil bölgede dokun!');
+      setFeedback(t.chopMiss);
     }
   };
 
@@ -118,11 +125,11 @@ export function ChoppingMiniGame({
       onClose={onClose}
       dismissible={!activePair}
       icon="🔪"
-      title="Kesme Tahtası"
+      title={t.stations.cutting_board.label}
       subtitle={
         activePair
-          ? `${activePair.raw.name} doğranıyor — imleç yeşil alandayken dokun!`
-          : 'Hazırlamak istediğin malzemeyi seç'
+          ? t.choppingActiveSub(t.ingredients[activePair.raw.id] ?? activePair.raw.name)
+          : t.choppingSelectSub
       }
     >
       {!activePair ? (
@@ -147,29 +154,24 @@ export function ChoppingMiniGame({
                     {raw.icon}
                   </span>
                   <div>
-                    <p className="text-sm font-extrabold">{raw.name}</p>
+                    <p className="text-sm font-extrabold">
+                      {t.ingredients[raw.id] ?? raw.name}
+                    </p>
                     <p className="text-[11px] ui-muted">
-                      Ham: ×{rawQty} · Hazır: ×{preppedQty}
+                      {t.rawShort(rawQty)} · {t.readyShort(preppedQty)}
                     </p>
                   </div>
                 </div>
                 <span className="rounded-xl bg-[#e07a5f] px-3 py-1.5 text-xs font-extrabold text-white">
-                  Doğra
+                  {t.chopBtn}
                 </span>
               </button>
             ))}
           </div>
 
           {preppable.every((p) => p.rawQty === 0) && (
-            <div className="flex items-center justify-between rounded-2xl border border-amber-500/30 bg-amber-500/12 p-3">
-              <p className="text-xs font-semibold">Doğranacak ham malzeme kalmadı.</p>
-              <button
-                type="button"
-                onClick={onGoToMarket}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white"
-              >
-                <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" /> Markete Git
-              </button>
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/12 p-3 text-xs font-semibold">
+              {t.noRawToChop}
             </div>
           )}
         </div>
@@ -201,7 +203,7 @@ export function ChoppingMiniGame({
           </div>
 
           <p className="h-5 text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
-            {feedback || 'Hazır olduğunda dokun!'}
+            {feedback || t.chopReadyPrompt}
           </p>
 
           <button
@@ -213,7 +215,7 @@ export function ChoppingMiniGame({
             }}
             className="w-full max-w-sm rounded-2xl bg-emerald-600 py-4 text-base font-extrabold text-white shadow-xl transition active:scale-95"
           >
-            {saving ? 'Kaydediliyor...' : `🔪 DOĞRA! (${slices}/${TARGET_SLICES})`}
+            {saving ? t.saving : t.chopActionBtn(slices, TARGET_SLICES)}
           </button>
         </div>
       )}

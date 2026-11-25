@@ -8,6 +8,7 @@ import {
   type ProfileId,
 } from '../../config/profiles';
 import { kitchenAudio } from '../../domain/audio';
+import { getTranslations } from '../../i18n/translations';
 import { signInWithProfilePin } from '../../services/supabase/auth';
 import {
   getSupabaseConfig,
@@ -15,6 +16,7 @@ import {
   saveSupabaseRuntimeConfig,
 } from '../../services/supabase/client';
 import { updateMyProfile } from '../../services/supabase/homeRepository';
+import { useLanguageStore } from '../../store/useLanguageStore';
 import type { BackendMode } from '../../store/useSessionStore';
 import { useThemeStore } from '../../store/useThemeStore';
 
@@ -50,6 +52,10 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const lang = useLanguageStore((s) => s.lang);
+  const setLang = useLanguageStore((s) => s.setLang);
+  const t = getTranslations(lang);
 
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
@@ -139,7 +145,7 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-extrabold tracking-tight sm:text-xl">
-                🍳 Bizim Mutfak
+                🍳 {t.appTitle}
               </h1>
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
@@ -150,17 +156,30 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
               >
                 {supabaseReady ? (
                   <>
-                    <Cloud className="h-3 w-3" aria-hidden="true" /> Bulut Aktif
+                    <Cloud className="h-3 w-3" aria-hidden="true" /> {t.cloudActive}
                   </>
                 ) : (
                   <>
-                    <HardDrive className="h-3 w-3" aria-hidden="true" /> Yerel ({DEFAULT_LOCAL_PIN})
+                    <HardDrive className="h-3 w-3" aria-hidden="true" /> {t.localMode(DEFAULT_LOCAL_PIN)}
                   </>
                 )}
               </span>
             </div>
 
             <div className="flex items-center gap-1.5">
+              {/* Quick TR/DE toggle on Login */}
+              <button
+                type="button"
+                onClick={() => {
+                  kitchenAudio.unlockSync();
+                  kitchenAudio.playTap();
+                  setLang(lang === 'tr' ? 'de' : 'tr');
+                }}
+                aria-label={t.languageLabel}
+                className="ui-subtle inline-flex h-11 items-center justify-center rounded-xl px-2.5 text-xs font-extrabold transition active:scale-95"
+              >
+                {lang === 'tr' ? '🇹🇷 TR' : '🇩🇪 DE'}
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -168,7 +187,7 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                   kitchenAudio.playTap();
                   toggleTheme();
                 }}
-                aria-label={theme === 'light' ? 'Koyu Temaya Geç' : 'Açık Temaya Geç'}
+                aria-label={theme === 'light' ? t.darkTheme : t.lightTheme}
                 className="ui-subtle inline-flex h-11 w-11 items-center justify-center rounded-xl transition active:scale-95"
               >
                 {theme === 'light' ? (
@@ -180,7 +199,7 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
               <button
                 type="button"
                 onClick={() => setShowSetup((v) => !v)}
-                aria-label="Supabase Bağlantı Ayarları"
+                aria-label={t.supabaseSetupTitle}
                 className="ui-subtle inline-flex h-11 w-11 items-center justify-center rounded-xl transition active:scale-95"
               >
                 <Settings2 className="h-4 w-4" aria-hidden="true" />
@@ -188,12 +207,11 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
             </div>
           </div>
 
-          {/* Slot + Custom Name row */}
           <div className="grid grid-cols-12 gap-2">
             <div
               className="col-span-5 grid grid-cols-2 gap-1.5"
               role="radiogroup"
-              aria-label="Profil Slotu"
+              aria-label="Slot"
             >
               {PROFILE_LIST.map((prof, idx) => {
                 const active = selectedProfile === prof.id;
@@ -210,7 +228,7 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                         : 'ui-surface opacity-75 hover:opacity-100'
                     }`}
                   >
-                    Oyuncu {idx + 1}
+                    {t.playerSlot(idx + 1)}
                   </button>
                 );
               })}
@@ -226,25 +244,25 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                 maxLength={20}
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
-                placeholder="İsmini yaz (örn: Uğur)..."
-                aria-label="Oyuncu İsmi"
+                placeholder={t.namePlaceholder}
+                aria-label={t.nameAriaLabel}
                 className="ui-surface w-full rounded-xl py-2 pl-9 pr-3 text-xs font-bold focus:outline-2 focus:outline-[#e07a5f]"
               />
             </label>
           </div>
 
-          {/* 4 Character Picker: Bubu, Dudu, Kedi, Köpek */}
           <div>
             <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider ui-muted">
-              Karakterini Seç
+              {t.chooseCharacter}
             </p>
             <div
               className="grid grid-cols-4 gap-2"
               role="radiogroup"
-              aria-label="Karakter Seçimi"
+              aria-label={t.chooseCharacter}
             >
               {CHARACTER_LIST.map((ch) => {
                 const active = selectedChar === ch.id;
+                const localized = t.characters[ch.id];
                 return (
                   <button
                     key={ch.id}
@@ -274,8 +292,8 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                     <span className="text-2xl leading-none" aria-hidden="true">
                       {ch.emoji}
                     </span>
-                    <span className="text-xs font-extrabold">{ch.name}</span>
-                    <span className="text-[10px] ui-muted leading-tight">{ch.tagline}</span>
+                    <span className="text-xs font-extrabold">{localized.name}</span>
+                    <span className="text-[10px] ui-muted leading-tight">{localized.tagline}</span>
                   </button>
                 );
               })}
@@ -283,14 +301,12 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
           </div>
         </section>
 
-        {/* Right column: Shared PIN Keypad or Supabase Settings */}
+        {/* Right column: Shared PIN Keypad */}
         <section className="ui-surface col-span-5 flex flex-col justify-center rounded-2xl p-3.5">
           {showSetup ? (
             <form onSubmit={handleSaveSupabase} className="space-y-2.5">
-              <h2 className="text-sm font-extrabold">Supabase Bağlantısı</h2>
-              <p className="text-[11px] ui-muted">
-                Project URL ve public Anon Key ayarını buradan değiştirebilirsiniz.
-              </p>
+              <h2 className="text-sm font-extrabold">{t.supabaseSetupTitle}</h2>
+              <p className="text-[11px] ui-muted">{t.supabaseSetupDesc}</p>
               <label className="block text-xs font-semibold">
                 Project URL
                 <input
@@ -316,14 +332,14 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                   type="submit"
                   className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white"
                 >
-                  Kaydet
+                  {t.saveBtn}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowSetup(false)}
                   className="ui-subtle rounded-xl px-3 py-2 text-xs font-semibold"
                 >
-                  Vazgeç
+                  {t.cancelBtn}
                 </button>
               </div>
             </form>
@@ -335,7 +351,7 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                   className="flex items-center gap-1.5 text-xs font-bold ui-muted"
                 >
                   <Lock className="h-3.5 w-3.5 text-[#e07a5f]" aria-hidden="true" />
-                  Ortak PIN
+                  {t.sharedPin}
                 </label>
                 <input
                   id="pin-input"
@@ -373,7 +389,7 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                   disabled={submitting || pin.length < 4}
                   className="rounded-xl bg-[#e07a5f] py-2 text-sm font-extrabold text-white shadow-md transition active:scale-95 disabled:opacity-45"
                 >
-                  {submitting ? '...' : 'GİR'}
+                  {submitting ? '...' : t.enterBtn}
                 </button>
               </div>
 

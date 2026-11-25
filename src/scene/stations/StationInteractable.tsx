@@ -4,7 +4,9 @@ import { Html } from '@react-three/drei';
 import { KITCHEN_STATIONS, type StationId } from '../../config/kitchenLayout';
 import { PROFILES, type ProfileId } from '../../config/profiles';
 import { isStationLockedByOther } from '../../domain/stationRules';
+import { getTranslations } from '../../i18n/translations';
 import { useGameStore } from '../../store/useGameStore';
+import { useLanguageStore } from '../../store/useLanguageStore';
 
 interface StationInteractableProps {
   stationId: StationId;
@@ -22,6 +24,8 @@ export function StationInteractable({
   children,
 }: StationInteractableProps) {
   const def = KITCHEN_STATIONS[stationId];
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
   const stationState = useGameStore((s) => s.stations[stationId]);
   const profiles = useGameStore((s) => s.profiles);
   const downPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -30,7 +34,7 @@ export function StationInteractable({
   const lockerName =
     stationState.lockedBy
       ? profiles[stationState.lockedBy]?.displayName ?? PROFILES[stationState.lockedBy].defaultName
-      : null;
+      : '';
 
   const [sx, sy, sz] = def.position;
   const [ix, iz] = def.interactionPoint;
@@ -65,7 +69,6 @@ export function StationInteractable({
     <group>
       <group position={[sx, sy, sz]}>
         {children}
-        {/* Generous invisible touch hitbox for Tap-to-Interact */}
         <mesh
           position={[0, hy * 0.5, 0]}
           onPointerDown={handlePointerDown}
@@ -75,7 +78,6 @@ export function StationInteractable({
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
 
-        {/* Station floating label & lock badge */}
         <Html
           position={[0, stationId === 'fridge' ? 2.02 : 1.48, 0.35]}
           center
@@ -89,17 +91,16 @@ export function StationInteractable({
             }`}
           >
             {lockedByOther ? (
-              <span>🔒 {lockerName} kullanıyor</span>
+              <span>{t.stationUsingBadge(lockerName)}</span>
             ) : (
               <span>
-                {def.icon} {def.label}
+                {def.icon} {t.stations[stationId].label}
               </span>
             )}
           </div>
         </Html>
       </group>
 
-      {/* Subtle floor interaction tile indicator */}
       <mesh
         position={[ix, 0.018, iz]}
         rotation={[-Math.PI / 2, 0, 0]}

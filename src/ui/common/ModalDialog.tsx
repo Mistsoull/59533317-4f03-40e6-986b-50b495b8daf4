@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { getTranslations } from '../../i18n/translations';
+import { useLanguageStore } from '../../store/useLanguageStore';
 
 interface ModalDialogProps {
   open: boolean;
@@ -7,27 +9,27 @@ interface ModalDialogProps {
   subtitle?: string;
   icon?: string;
   dismissible?: boolean;
+  compact?: boolean;
   onClose: () => void;
   headerRight?: ReactNode;
   children: ReactNode;
 }
 
-/**
- * Native <dialog> modal following modern-web-guidance (dialog & light-dismiss-a-dialog).
- * Adapts cleanly to both Light (default vibrant) and Dark themes via CSS tokens.
- */
 export function ModalDialog({
   open,
   title,
   subtitle,
   icon,
   dismissible = true,
+  compact = false,
   onClose,
   headerRight,
   children,
 }: ModalDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -51,7 +53,6 @@ export function ModalDialog({
 
     dialog.addEventListener('close', handleClose);
 
-    // Mandatory Safari fallback for <dialog closedby="any">
     let removeSafariFallback: (() => void) | undefined;
     if (dismissible && !('closedBy' in HTMLDialogElement.prototype)) {
       let pressedOutside = false;
@@ -95,7 +96,7 @@ export function ModalDialog({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
-      className="w-[min(92dvw,46rem)] overflow-hidden"
+      className={`${compact ? 'w-[min(90dvw,28rem)]' : 'w-[min(92dvw,46rem)]'} overflow-hidden`}
       {...closedByAttr}
     >
       <header
@@ -124,7 +125,7 @@ export function ModalDialog({
           <button
             type="button"
             onClick={() => dialogRef.current?.close()}
-            aria-label="Kapat"
+            aria-label={t.closeLabel}
             className="ui-subtle inline-flex h-11 w-11 items-center justify-center rounded-xl transition active:scale-95"
           >
             <X className="h-5 w-5" aria-hidden="true" />

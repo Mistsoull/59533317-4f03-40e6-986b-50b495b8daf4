@@ -20,8 +20,8 @@ function lerpAngle(current: number, target: number, factor: number): number {
 }
 
 /**
- * Renders the remote partner interpolated at 60 FPS from ~15 Hz Broadcast packets.
- * Automatically shows only when both players are inside the same room (Kitchen or Market).
+ * Renders the remote partner interpolated at 60 FPS from ~15 Hz Broadcast packets
+ * (and immediately seeded from Presence so late joiners ALWAYS see already-connected partners!).
  */
 export function RemotePlayer({
   myProfileId,
@@ -35,16 +35,16 @@ export function RemotePlayer({
   const partnerProfile = useGameStore((s) => s.profiles[partnerId]);
 
   const isOnline = Boolean(partnerPresence);
-  const partnerRoom = partnerPresence?.room ?? 'kitchen';
+  const partnerRoom = partnerPresence?.room ?? playerMotionStore.remote.room ?? 'kitchen';
   const inSameRoom = isOnline && partnerRoom === room;
 
   const displayName =
-    partnerPresence?.displayName ??
     partnerProfile?.displayName ??
+    partnerPresence?.displayName ??
     PROFILES[partnerId].defaultName;
   const characterId =
-    partnerPresence?.characterId ??
     partnerProfile?.characterId ??
+    partnerPresence?.characterId ??
     PROFILES[partnerId].defaultCharacter;
   const charDef = CHARACTERS[characterId] ?? CHARACTERS.dudu;
   const assetId = `char_${charDef.id}` as AssetId;
@@ -56,13 +56,22 @@ export function RemotePlayer({
     const group = groupRef.current;
     if (!group) return;
 
-    const rem = playerMotionStore.remote;
-    if (!inSameRoom || rem.room !== room) {
+    if (!inSameRoom) {
       group.visible = false;
       return;
     }
 
+    const rem = playerMotionStore.remote;
     group.visible = true;
+
+    if (!rem.initialized) {
+      const [sx, sz] = PROFILES[partnerId].spawnPosition;
+      group.position.set(sx, 0, sz);
+      group.rotation.y = 0;
+      animRef.current = 'Idle';
+      return;
+    }
+
     const dt = Math.min(delta, 0.05);
     const smooth = 1 - Math.exp(-12 * dt);
 
@@ -79,11 +88,15 @@ export function RemotePlayer({
     return null;
   }
 
+  const initX = playerMotionStore.remote.initialized
+    ? playerMotionStore.remote.x
+    : PROFILES[partnerId].spawnPosition[0];
+  const initZ = playerMotionStore.remote.initialized
+    ? playerMotionStore.remote.z
+    : PROFILES[partnerId].spawnPosition[1];
+
   return (
-    <group
-      ref={groupRef}
-      position={[PROFILES[partnerId].spawnPosition[0], 0, PROFILES[partnerId].spawnPosition[1]]}
-    >
+    <group ref={groupRef} position={[initX, 0, initZ]}>
       <ModelSlot
         key={assetId}
         assetId={assetId}

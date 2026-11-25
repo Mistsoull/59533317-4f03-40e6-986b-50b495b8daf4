@@ -26,6 +26,7 @@ export interface LocalMotionState {
 
 export interface RemoteMotionState {
   profileId: ProfileId | null;
+  sessionNonce: string | null;
   room: RoomId;
   active: boolean;
   initialized: boolean;
@@ -58,12 +59,21 @@ export const playerMotionStore: {
   setLocalInteracting: (interacting: boolean, facingAngle?: number) => void;
   applyRemotePacket: (
     profileId: ProfileId,
+    sessionNonce: string,
     room: RoomId,
     x: number,
     z: number,
     rotY: number,
     anim: AnimState,
     seq: number,
+  ) => void;
+  seedRemoteFromPresence: (
+    profileId: ProfileId,
+    room: RoomId,
+    x?: number,
+    z?: number,
+    rotY?: number,
+    anim?: AnimState,
   ) => void;
   setRemoteActive: (active: boolean, profileId?: ProfileId | null, room?: RoomId) => void;
 } = {
@@ -82,6 +92,7 @@ export const playerMotionStore: {
   },
   remote: {
     profileId: null,
+    sessionNonce: null,
     room: 'kitchen',
     active: false,
     initialized: false,
@@ -134,17 +145,19 @@ export const playerMotionStore: {
     }
   },
 
-  applyRemotePacket(profileId, room, x, z, rotY, anim, seq) {
-    if (
+  applyRemotePacket(profileId, sessionNonce, room, x, z, rotY, anim, seq) {
+    const sameSession =
       this.remote.profileId === profileId &&
-      seq < this.remote.lastSeq &&
-      this.remote.lastSeq - seq < 500
-    ) {
+      this.remote.sessionNonce === sessionNonce;
+
+    // Only drop out-of-order packets within the same connection session
+    if (sameSession && seq < this.remote.lastSeq) {
       return;
     }
 
     const roomChanged = this.remote.room !== room;
     this.remote.profileId = profileId;
+    this.remote.sessionNonce = sessionNonce;
     this.remote.room = room;
     this.remote.active = true;
     this.remote.lastSeq = seq;
@@ -154,10 +167,28 @@ export const playerMotionStore: {
     this.remote.targetRotY = rotY;
     this.remote.anim = anim;
 
-    if (!this.remote.initialized || roomChanged) {
+    if (!this.remote.initialized || !sameSession || roomChanged) {
       this.remote.x = x;
       this.remote.z = z;
       this.remote.rotY = rotY;
+      this.remote.initialized = true;
+    }
+  },
+
+  seedRemoteFromPresence(profileId, room, x, z, rotY, anim) {
+    this.remote.profileId = profileId;
+    this.remote.active = true;
+    const roomChanged = this.remote.room !== room;
+    this.remote.room = room;
+
+    if ((!this.remote.initialized || roomChanged) && typeof x === 'number' && typeof z === 'number') {
+      this.remote.x = x;
+      this.remote.z = z;
+      this.remote.targetX = x;
+      this.remote.targetZ = z;
+      this.remote.rotY = rotY ?? 0;
+      this.remote.targetRotY = rotY ?? 0;
+      this.remote.anim = anim ?? 'Idle';
       this.remote.initialized = true;
     }
   },
@@ -172,6 +203,7 @@ export const playerMotionStore: {
     }
     if (!active) {
       this.remote.initialized = false;
+      this.remote.sessionNonce = null;
       this.remote.lastSeq = -1;
       this.remote.anim = 'Idle';
     }

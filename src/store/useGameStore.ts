@@ -16,7 +16,8 @@ export type ActiveOverlay =
   | 'market_stall'
   | 'recipe_book'
   | 'cutting_board'
-  | 'stove';
+  | 'stove'
+  | 'settings';
 
 export interface ToastItem {
   id: number;

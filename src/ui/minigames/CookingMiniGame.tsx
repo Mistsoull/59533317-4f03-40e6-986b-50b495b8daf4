@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Flame, ShoppingBag } from 'lucide-react';
+import { Flame } from 'lucide-react';
 import { INGREDIENTS } from '../../config/ingredients';
 import type { ProfileId } from '../../config/profiles';
 import { RECIPE_LIST, type RecipeDef } from '../../config/recipes';
 import { kitchenAudio } from '../../domain/audio';
 import { canCookRecipe } from '../../domain/stationRules';
+import { getTranslations } from '../../i18n/translations';
 import { completeCook } from '../../services/supabase/homeRepository';
 import { useGameStore } from '../../store/useGameStore';
+import { useLanguageStore } from '../../store/useLanguageStore';
 import { ModalDialog } from '../common/ModalDialog';
 
 interface CookingMiniGameProps {
   open: boolean;
   profileId: ProfileId;
   onClose: () => void;
-  onGoToMarket: () => void;
 }
 
 const HEAT_LOW = 38;
@@ -23,10 +24,11 @@ export function CookingMiniGame({
   open,
   profileId,
   onClose,
-  onGoToMarket,
 }: CookingMiniGameProps) {
   const inventory = useGameStore((s) => s.inventory);
   const pushToast = useGameStore((s) => s.pushToast);
+  const lang = useLanguageStore((s) => s.lang);
+  const t = getTranslations(lang);
 
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeDef | null>(null);
   const [heat, setHeat] = useState(25);
@@ -73,17 +75,22 @@ export function CookingMiniGame({
         selectedRecipe.rewardCoins,
       );
       setSaving(false);
+      const curT = getTranslations(useLanguageStore.getState().lang);
       if (res.ok) {
         kitchenAudio.playSuccess();
         kitchenAudio.playCoin();
         pushToast(
-          `${selectedRecipe.icon} ${selectedRecipe.name} nefis oldu! +${selectedRecipe.rewardCoins} Coin`,
+          curT.cookedToast(
+            selectedRecipe.icon,
+            curT.recipes[selectedRecipe.id].name,
+            selectedRecipe.rewardCoins,
+          ),
           'success',
         );
         onClose();
       } else {
         kitchenAudio.playError();
-        pushToast('Malzeme eksik — pişirme tamamlanamadı.', 'warn');
+        pushToast(curT.missingIngredientsToast, 'warn');
         setSelectedRecipe(null);
         completedRef.current = false;
       }
@@ -141,6 +148,7 @@ export function CookingMiniGame({
   };
 
   const inZone = heat >= HEAT_LOW && heat <= HEAT_HIGH;
+  const locSelected = selectedRecipe ? t.recipes[selectedRecipe.id] : null;
 
   return (
     <ModalDialog
@@ -148,11 +156,11 @@ export function CookingMiniGame({
       onClose={onClose}
       dismissible={!selectedRecipe}
       icon="🔥"
-      title="Ocak"
+      title={t.stations.stove.label}
       subtitle={
-        selectedRecipe
-          ? `${selectedRecipe.name} pişiyor — ısıyı altın bölgede tut!`
-          : 'Pişirmek istediğin tarifi seç'
+        locSelected
+          ? t.stoveActiveSub(locSelected.name)
+          : t.stoveSelectSub
       }
     >
       {!selectedRecipe ? (
@@ -174,7 +182,9 @@ export function CookingMiniGame({
                         +🪙 {recipe.rewardCoins}
                       </span>
                     </div>
-                    <h2 className="mt-1.5 text-sm font-extrabold">{recipe.name}</h2>
+                    <h2 className="mt-1.5 text-sm font-extrabold">
+                      {t.recipes[recipe.id].name}
+                    </h2>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {recipe.requirements.map((req) => {
                         const ing = INGREDIENTS[req.itemId];
@@ -213,24 +223,15 @@ export function CookingMiniGame({
                     }}
                     className="w-full rounded-xl bg-[#e07a5f] py-2 text-xs font-extrabold text-white transition active:scale-95 disabled:opacity-40"
                   >
-                    {ready ? '🔥 Pişirmeye Başla' : 'Malzeme Hazırla'}
+                    {ready ? t.startCooking : t.prepareIngredients}
                   </button>
                 </div>
               );
             })}
           </div>
 
-          <div className="ui-surface flex items-center justify-between rounded-xl px-3 py-2 text-xs">
-            <span className="ui-muted">
-              Eksik malzemen varsa 3D Marketten al, ham sebzeleri Kesme Tahtasında doğra.
-            </span>
-            <button
-              type="button"
-              onClick={onGoToMarket}
-              className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-extrabold text-white"
-            >
-              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" /> Markete Git
-            </button>
+          <div className="ui-surface rounded-xl px-3 py-2 text-xs ui-muted">
+            {t.stoveMarketHint}
           </div>
         </div>
       ) : (
@@ -238,7 +239,7 @@ export function CookingMiniGame({
           <div className="space-y-1">
             <div className="flex justify-between text-xs font-extrabold">
               <span>
-                {selectedRecipe.icon} {selectedRecipe.name} Pişme İlerlemesi
+                {t.cookProgressLabel(selectedRecipe.icon, locSelected!.name)}
               </span>
               <span className="text-emerald-600 dark:text-emerald-300">
                 {Math.round(progress)}%
@@ -254,17 +255,13 @@ export function CookingMiniGame({
 
           <div className="space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="ui-muted font-semibold">Ocak Isısı</span>
+              <span className="ui-muted font-semibold">{t.stoveHeatLabel}</span>
               <span
                 className={
                   inZone ? 'font-extrabold text-amber-600 dark:text-amber-300' : 'ui-muted'
                 }
               >
-                {inZone
-                  ? '✨ Altın Pişirme Bölgesi!'
-                  : heat < HEAT_LOW
-                    ? 'Isı Düşük'
-                    : 'Çok Sıcak!'}
+                {inZone ? t.heatGolden : heat < HEAT_LOW ? t.heatLow : t.heatHigh}
               </span>
             </div>
             <div className="ui-subtle relative h-12 w-full overflow-hidden rounded-2xl border border-amber-500/30">
@@ -302,7 +299,7 @@ export function CookingMiniGame({
               className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 py-4 text-sm font-extrabold text-white shadow-lg select-none active:scale-97"
             >
               <Flame className="h-5 w-5" aria-hidden="true" />
-              ATEŞİ AÇ (Basılı Tut)
+              {t.holdFlameBtn}
             </button>
 
             <button
@@ -319,8 +316,8 @@ export function CookingMiniGame({
               }`}
             >
               {cueVisible
-                ? `✨ ŞİMDİ ${selectedRecipe.cookActionLabel.toUpperCase()}! (+18%)`
-                : `${selectedRecipe.cookActionLabel} Bekleniyor...`}
+                ? t.nowActionBtn(locSelected!.cookActionLabel)
+                : t.waitingActionBtn(locSelected!.cookActionLabel)}
             </button>
           </div>
         </div>

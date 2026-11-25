@@ -147,7 +147,7 @@ export function KitchenCanvas({
       style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }}
     >
       <color attach="background" args={[bgHex]} />
-      <IsometricCamera />
+      <IsometricCamera room={currentRoom} />
 
       {/* Warm cozy mobile-friendly WebGL 2 lighting */}
       <hemisphereLight
@@ -265,6 +265,7 @@ export function KitchenCanvas({
         <RoomDoor
           door={MARKET_TO_KITCHEN_DOOR}
           accentColor="#e07a5f"
+          wall="back"
           active={currentRoom === 'market'}
           onSelectDoor={() =>
             walkTo(

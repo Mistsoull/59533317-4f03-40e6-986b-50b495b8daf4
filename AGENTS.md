@@ -103,9 +103,9 @@ src/
     auth/ProfilePinGate.tsx           # Profil slotu, özel isim, 4 karakter seçici, canlı doluluk kilidi ve PIN tuş takımı
     common/ModalDialog.tsx            # Erişilebilir ortak modal kabuğu
     guards/LandscapeGuard.tsx         # Dikey yön engelleme katmanı
-    hud/                              # TopHudBar, OrderTicketBar (tüm odalarda canlı sipariş şeridi), ToastLayer
+    hud/                              # TopHudBar (sade: Coin, Siparişler, Tarif Defteri, Ayarlar), ToastLayer (tıklanabilir sipariş bildirimi)
     minigames/                        # ChoppingMiniGame (Kesme Tahtası), CookingMiniGame (Ocak -> hazır tabak)
-    modals/                           # FridgeModal, MarketModal, ServicePassModal, RecipeBookModal, SettingsModal
+    modals/                           # FridgeModal, MarketModal, ServicePassModal (ortalı Siparişler & Servis popup'ı), RecipeBookModal, SettingsModal
 ```
 
 ---
@@ -119,7 +119,7 @@ src/
   - Mutfak'taki sağ bistro kapısından yürüyerek geçilen, etrafında boşluk bırakmayan 3 duvarlı tam ekran kapalı iç mekan (`PerspectiveCamera` `[1.45, 5.35, 7.45]`, `lookAt(-0.1, 0.65, -0.65)`), 3 bistro masası, sokak giriş kapısı ve restoran tarafı servis bankosu.
   - **Manuel Açılış & Deterministik Host:** `home_state.restaurant_open` varsayılanı `false` (servis manuel açılır). Oturum açılışında süresi dolmuş siparişler sessizce temizlenir. Presence üzerinden `p1` öncelikli Host seçimi + sunucu taraflı 8 sn cooldown + aktif masa limiti (1 kişi max 2, 2 kişi max 3 masa) + `get_server_time()` ile `clockOffsetMs` saat sapması telafisi çalışır.
   - **Zorluk Seviyesine Göre Teslim Süreleri & Cozy Mod:** Menemen (Kolay `90 sn`), Çilekli Pankek (Orta `120 sn`), Kremalı Mantarlı Makarna (Zor `150 sn`); tek oyuncuda otomatik `×1.35`. Kalan süre `>%50` ise hızlı servis bahşişi (`+%25`/`+%30`), `%20–%50` normal ücret, `<%20` `%85` ücret; süre dolunca **Cozy Mod** gereği coin cezası yok, sadece seri sıfırlanır.
-  - **Otomatik Garson Teslimatı:** Pişen yemekler `stage = 'cooked'` stoğuna girer. Oyuncular tabağı elle taşımaz; tüm odalarda görünen `OrderTicketBar` (`350ms` hafif tik) veya `ServicePassModal` üzerinden **"Hazır / Gönder"** basıldığı an `serve_restaurant_order` RPC süreyi dondurup (`status = 'delivering'`) coin + bahşişi kilitler (garson yürürken sipariş asla zaman aşımına uğramaz). 3D **Garson NPC (`waiter.glb`)** 2D A* ile tabağı masaya götürür, müşteri ~4 sn yiyip kapıdan çıkar (sıfır DB pozisyon yazımı; 3D masa süre barları `useFrame` Three.js ref ile güncellenir).
+  - **Otomatik Garson Teslimatı:** Pişen yemekler `stage = 'cooked'` stoğuna girer. Oyuncular tabağı elle taşımaz; yeni sipariş geldiğinde tıklanabilir bildirim çıkar ve üst çubuktaki **🔔 Siparişler** butonu (veya 3D **Servis Zili**) ile açılan ortalı **ServicePassModal** penceresinden **"Hazır / Gönder"** basıldığı an `serve_restaurant_order` RPC süreyi dondurup (`status = 'delivering'`) coin + bahşişi kilitler (garson yürürken sipariş asla zaman aşımına uğramaz). 3D **Garson NPC (`waiter.glb`)** 2D A* ile tabağı masaya götürür, müşteri ~4 sn yiyip kapıdan çıkar (sıfır DB pozisyon yazımı; 3D masa süre barları `useFrame` Three.js ref ile güncellenir; `pickNextSpawnCandidate` aynı müşterinin ve gereksiz yere aynı tarifin eşzamanlı 2 masada çıkmasını engeller).
   - **Fazla Tabak Paket Satışı:** `ServicePassModal` üzerinden fazla pişen tabaklar `sell_cooked_dish` RPC ile satılabilir; `needsPantrySupport` hazır tabak stoğunu da dikkate alır.
 - **Oda Geçiş Performansı:** Her üç oda React ağacında canlı tutulur (`visible={currentRoom === ...}`), React 19 + drei `<Html>` unmount `removeChild` hatası engellenmiş, geçiş `< 1 ms` hıza indirilmiş ve Garson/Müşteri animasyonları mutfaktayken de kesintisiz çalışır.
 - **Tap-to-Move & Çarpışma:** Saf TypeScript 2D AABB (`collision2d.ts`) ve 2D ızgara A* (`pathfinding.ts`). İstasyon, servis bankosu veya kapıya dokunulduğunda oyuncu otomatik `interactionPoint` noktasına yürür, yüzünü döner ve etkileşimi başlatır.
@@ -149,8 +149,9 @@ src/
 - **Özel İsim & 4 Karakter Seçimi:** Giriş ekranında oyuncu adını yazıp Bubu, Dudu, Kedi, Köpek arasından seçim yapabilir (`update_my_profile` RPC).
 - **Canlı Açık Tema (Varsayılan) + Gece Modu:** `useThemeStore` + CSS `light-dark()` + Tailwind v4 özel `dark` varyantı.
 - **Türkçe (`tr`) & Almanca (`de`) Dil Desteği:** Giriş ekranı, HUD, ayarlar, market, buzdolabı, mini-oyunlar, bildirimler ve gerçek hayat tarifleri dahil tam çeviri (`src/i18n/translations.ts`).
-- **Sadeleştirilmiş HUD & Ortalı Ayarlar Penceresi (`TopHudBar`, `SettingsModal`):**
-  - Üst çubukta yalnızca ortak coin, partnerin çevrimiçi/çevrimdışı durumu (kendi çevrimiçi etiketi, oda bilgisi, alt ipucu ve markete ışınlanma butonu kaldırıldı), Tarif Defteri ve tek `⚙️` Ayarlar butonu bulunur.
+- **Sadeleştirilmiş HUD, Siparişler & Ortalı Ayarlar Penceresi (`TopHudBar`, `ServicePassModal`, `SettingsModal`, `ToastLayer`):**
+  - Üst çubukta yalnızca sol tarafta ortak coin (`🪙`), sağ tarafta ise **🔔 Siparişler** (aktif sayı + acil/hazır rozetiyle ortalı popup açar), **Tarif Defteri** ve tek **⚙️ Ayarlar** butonu bulunur (sabit çevrimiçi/çevrimdışı rozeti, sabit sipariş şeridi, oda bilgisi, alt ipucu ve markete ışınlanma butonu kaldırıldı).
+  - Yeni müşteri siparişi geldiğinde alt ortada tıklanabilir bildirim çıkar; dokunulduğunda doğrudan ortalı **Siparişler & Servis** penceresini açar.
   - Ortalı Ayarlar penceresinde: Dil (TR/DE), Görünüm (Açık/Gece), Tam Ekran Modu (`src/domain/fullscreen.ts`), Ses Efektleri, Gerçek Hayat Tarifleri aç/kapa (`useSettingsStore`) ve Çıkış Yap yer alır.
 - **Android/iOS Tam Ekran PWA:** Manifest `display: 'fullscreen'` (`display_override: ['fullscreen', 'standalone']`), `orientation: 'landscape'` ve iOS standalone meta etiketleri.
 
@@ -188,4 +189,5 @@ Diğer yardımcı komutlar:
 | 2026-11-25 | `5263954` | Giriş ekranında canlı Presence ile oyundaki oyuncu slotu ve karakterini tıklanamaz yapma, boş slota/karaktere otomatik geçiş ve `lobbyOccupancy` birim testleri eklendi. |
 | 2026-11-25 | `b849492` | Proje özeti, teknoloji yığını, mimari ve değişiklik günlüğünü içeren `AGENTS.md` oluşturuldu; `.agents/rules/kitchen-game-rules.md` içine her güncellemede `AGENTS.md` güncelleme zorunluluğu eklendi. |
 | 2026-11-25 | `cd46a52` | Mutfak'a bağlı yürünebilir **3D Restoran Salonu** (3 masa), yürüyen 3D müşteri NPC'leri, otomatik 3D **Garson NPC** (`waiter.glb`), zorluk bazlı teslim süreleri (90/120/150sn + tek kişi ×1.35 + Cozy Mod), manuel restoran açılışı, deterministik Host + sunucu cooldown/limit, `clockOffsetMs`, tüm odalarda canlı `OrderTicketBar`, `ServicePassModal`, `sell_cooked_dish` RPC, 8 yeni Draco `.glb` ve `005_restaurant_orders.sql` canlı Supabase Cloud kurulumu eklendi. |
-| 2026-11-25 | *(güncel)* | Mutfak (`KitchenRoom`) ve Restoran (`RestaurantRoom`) da Market gibi etrafında hiç boşluk bırakmayan 3 duvarlı tam ekran kapalı iç mekan `PerspectiveCamera` (`[1.45, 5.35, 7.45]`, `lookAt(-0.1, 0.65, -0.65)`) mimarisine geçirildi; Mutfak sağ duvarına servis penceresi ve tam boy bistro kapısı eklendi. |
+| 2026-11-25 | `134bba2` | Mutfak (`KitchenRoom`) ve Restoran (`RestaurantRoom`) da Market gibi etrafında hiç boşluk bırakmayan 3 duvarlı tam ekran kapalı iç mekan `PerspectiveCamera` (`[1.45, 5.35, 7.45]`, `lookAt(-0.1, 0.65, -0.65)`) mimarisine geçirildi; Mutfak sağ duvarına servis penceresi ve tam boy bistro kapısı eklendi. |
+| 2026-11-25 | *(güncel)* | Aynı müşterinin/tarifin eşzamanlı iki masada çıkması engellendi (`pickNextSpawnCandidate` + `useGameStore` masa bazlı tekilleştirme); sabit `OrderTicketBar` ve üst HUD'daki sabit çevrimiçi rozeti kaldırıldı; yeni siparişlerde tıklanabilir bildirim (`ToastLayer`) + üst çubukta ortalı **Siparişler & Servis** popup'ını açan **🔔 Siparişler** butonu eklendi. |

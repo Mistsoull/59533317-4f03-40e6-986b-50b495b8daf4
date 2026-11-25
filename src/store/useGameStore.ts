@@ -24,7 +24,8 @@ export type ActiveOverlay =
 export interface ToastItem {
   id: number;
   message: string;
-  tone: 'info' | 'success' | 'warn';
+  tone: 'info' | 'success' | 'warn' | 'order';
+  actionOverlay?: ActiveOverlay;
 }
 
 let toastIdCounter = 0;
@@ -157,7 +158,11 @@ interface GameState {
   setOrders: (orders: RestaurantOrderRow[]) => void;
   setActiveOverlay: (overlay: ActiveOverlay) => void;
   setHeldLockStation: (station: StationId | null) => void;
-  pushToast: (message: string, tone?: ToastItem['tone']) => void;
+  pushToast: (
+    message: string,
+    tone?: ToastItem['tone'],
+    actionOverlay?: ActiveOverlay,
+  ) => void;
   dismissToast: (id: number) => void;
 }
 
@@ -233,36 +238,49 @@ export const useGameStore = create<GameState>((set) => ({
 
   upsertOrder: (order) =>
     set((state) => {
-      const idx = state.orders.findIndex((o) => o.id === order.id);
       if (order.status === 'served' || order.status === 'expired') {
-        if (idx === -1) return state;
+        if (!state.orders.some((o) => o.id === order.id)) return state;
         return { orders: state.orders.filter((o) => o.id !== order.id) };
       }
-      if (idx === -1) {
-        return { orders: [...state.orders, order] };
-      }
-      const next = [...state.orders];
-      next[idx] = order;
+      // Enforce at most 1 active order per tableId and unique order.id
+      const withoutDupes = state.orders.filter(
+        (o) => o.id !== order.id && o.tableId !== order.tableId,
+      );
+      const next = [...withoutDupes, order].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
       return { orders: next };
     }),
 
-  setOrders: (orders) => set({ orders }),
+  setOrders: (orders) =>
+    set(() => {
+      const byTable = new Map<string, RestaurantOrderRow>();
+      for (const o of orders) {
+        if (o.status !== 'waiting' && o.status !== 'delivering') continue;
+        byTable.set(o.tableId, o);
+      }
+      const deduped = Array.from(byTable.values()).sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+      return { orders: deduped };
+    }),
 
   setActiveOverlay: (activeOverlay) => set({ activeOverlay }),
 
   setHeldLockStation: (heldLockStation) => set({ heldLockStation }),
 
-  pushToast: (message, tone = 'info') => {
+  pushToast: (message, tone = 'info', actionOverlay) => {
     toastIdCounter += 1;
     const id = toastIdCounter;
     set((state) => ({
-      toasts: [...state.toasts.slice(-2), { id, message, tone }],
+      toasts: [...state.toasts.slice(-2), { id, message, tone, actionOverlay }],
     }));
+    const durationMs = tone === 'order' ? 5200 : 3200;
     window.setTimeout(() => {
       set((state) => ({
         toasts: state.toasts.filter((t) => t.id !== id),
       }));
-    }, 3200);
+    }, durationMs);
   },
 
   dismissToast: (id) =>

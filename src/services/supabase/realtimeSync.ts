@@ -13,7 +13,6 @@ import {
   type OccupiedEntry,
 } from '../../domain/lobbyOccupancy';
 import type { OrderStatus } from '../../domain/restaurantRules';
-import { kitchenAudio } from '../../domain/audio';
 import { getTranslations } from '../../i18n/translations';
 import { createLobbyObserverClient, getSupabaseClient } from './client';
 import type {
@@ -556,9 +555,6 @@ class KitchenRealtimeSync {
             tip_coins?: number;
           };
           if (!row?.id || !row.table_id || !row.recipe_id) return;
-          const prevExists = useGameStore
-            .getState()
-            .orders.some((o) => o.id === row.id);
           useGameStore.getState().upsertOrder({
             id: row.id,
             tableId: row.table_id,
@@ -574,9 +570,6 @@ class KitchenRealtimeSync {
             rewardCoins: Number(row.reward_coins ?? 0),
             tipCoins: Number(row.tip_coins ?? 0),
           });
-          if (!prevExists && row.status === 'waiting') {
-            kitchenAudio.playBell();
-          }
         },
       );
 

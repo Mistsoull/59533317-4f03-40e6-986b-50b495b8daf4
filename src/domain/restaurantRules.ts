@@ -176,10 +176,14 @@ export interface SpawnCandidate {
 }
 
 /**
- * Selects an unoccupied table, recipe, and cute customer preset if active table limit allows.
+ * Selects an unoccupied table, distinct recipe (when available), and non-duplicate
+ * customer preset if active table limit allows.
  */
 export function pickNextSpawnCandidate(
-  activeOrders: readonly Pick<RestaurantOrderView, 'tableId' | 'status' | 'recipeId'>[],
+  activeOrders: readonly (Pick<RestaurantOrderView, 'tableId' | 'status' | 'recipeId'> & {
+    customerName?: string;
+    customerAvatar?: CustomerAvatarId;
+  })[],
   onlinePlayerCount: number,
   lang: 'tr' | 'de' = 'tr',
   randomFn: () => number = Math.random,
@@ -196,10 +200,41 @@ export function pickNextSpawnCandidate(
   const freeTables = RESTAURANT_TABLE_LIST.filter((t) => !occupiedTables.has(t.id));
   if (freeTables.length === 0) return null;
 
+  // Prefer recipes not already actively ordered so two tables don't duplicate unnecessarily
+  const activeRecipes = new Set(occupiedOrders.map((o) => o.recipeId));
+  const distinctRecipes = RECIPE_LIST.filter((r) => !activeRecipes.has(r.id));
+  const recipePool = distinctRecipes.length > 0 ? distinctRecipes : RECIPE_LIST;
+
+  // Never seat the same customer twice at the same time; also prefer distinct animal avatars
+  const activeNames = new Set(
+    occupiedOrders
+      .map((o) => o.customerName?.trim().toLowerCase())
+      .filter((n): n is string => Boolean(n)),
+  );
+  const activeAvatars = new Set(
+    occupiedOrders
+      .map((o) => o.customerAvatar)
+      .filter((a): a is CustomerAvatarId => Boolean(a)),
+  );
+
+  const unseenNamePresets = CUSTOMER_PRESETS.filter(
+    (p) =>
+      !activeNames.has(p.nameTr.toLowerCase()) &&
+      !activeNames.has(p.nameDe.toLowerCase()),
+  );
+  const unseenAvatarPresets = unseenNamePresets.filter(
+    (p) => !activeAvatars.has(p.avatar),
+  );
+  const presetPool =
+    unseenAvatarPresets.length > 0
+      ? unseenAvatarPresets
+      : unseenNamePresets.length > 0
+        ? unseenNamePresets
+        : CUSTOMER_PRESETS;
+
   const table = freeTables[Math.floor(randomFn() * freeTables.length) % freeTables.length];
-  const recipe = RECIPE_LIST[Math.floor(randomFn() * RECIPE_LIST.length) % RECIPE_LIST.length];
-  const preset =
-    CUSTOMER_PRESETS[Math.floor(randomFn() * CUSTOMER_PRESETS.length) % CUSTOMER_PRESETS.length];
+  const recipe = recipePool[Math.floor(randomFn() * recipePool.length) % recipePool.length];
+  const preset = presetPool[Math.floor(randomFn() * presetPool.length) % presetPool.length];
 
   return {
     tableId: table.id,

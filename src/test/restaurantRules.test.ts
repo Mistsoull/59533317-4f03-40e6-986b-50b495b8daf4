@@ -96,12 +96,29 @@ describe('restaurantRules', () => {
 
     // Solo player capped at 2 active tables (including 'delivering')
     const twoActive = [
-      { tableId: 'table_1' as const, status: 'waiting' as const, recipeId: 'menemen' as const },
-      { tableId: 'table_2' as const, status: 'delivering' as const, recipeId: 'pankek' as const },
+      {
+        tableId: 'table_1' as const,
+        status: 'waiting' as const,
+        recipeId: 'menemen' as const,
+        customerName: 'Tilki Mira',
+        customerAvatar: 'cust_fox' as const,
+      },
+      {
+        tableId: 'table_2' as const,
+        status: 'delivering' as const,
+        recipeId: 'pankek' as const,
+        customerName: 'Tavşan Pamuk',
+        customerAvatar: 'cust_bunny' as const,
+      },
     ];
     expect(pickNextSpawnCandidate(twoActive, 1, 'tr', () => 0)).toBeNull();
     const thirdForDuo = pickNextSpawnCandidate(twoActive, 2, 'tr', () => 0);
     expect(thirdForDuo?.tableId).toBe('table_3');
+    // Must pick a distinct recipe and non-duplicate customer/avatar!
+    expect(thirdForDuo?.recipeId).toBe('mantarli_makarna');
+    expect(thirdForDuo?.customerName).not.toBe('Tilki Mira');
+    expect(thirdForDuo?.customerName).not.toBe('Tavşan Pamuk');
+    expect(thirdForDuo?.customerAvatar).toBe('cust_bear');
   });
 
   it('computes clock skew offset and selects most urgent waiting order for a recipe', () => {

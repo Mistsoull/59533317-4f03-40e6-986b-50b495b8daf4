@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KITCHEN_STATIONS, type RoomId, type StationId } from './config/kitchenLayout';
 import { MARKET_SPAWN, type MarketStallId } from './config/marketLayout';
 import { PROFILES, type ProfileId } from './config/profiles';
-import { RESTAURANT_SPAWN } from './config/restaurantLayout';
+import { RECIPES } from './config/recipes';
+import { RESTAURANT_SPAWN, RESTAURANT_TABLES } from './config/restaurantLayout';
 import { kitchenAudio } from './domain/audio';
 import {
   DELIVERING_FINALIZE_SECONDS,
@@ -30,7 +31,6 @@ import { useSessionStore, type BackendMode } from './store/useSessionStore';
 import { KitchenCanvas } from './scene/KitchenCanvas';
 import { ProfilePinGate } from './ui/auth/ProfilePinGate';
 import { LandscapeGuard } from './ui/guards/LandscapeGuard';
-import { OrderTicketBar } from './ui/hud/OrderTicketBar';
 import { ToastLayer } from './ui/hud/ToastLayer';
 import { TopHudBar } from './ui/hud/TopHudBar';
 import { ChoppingMiniGame } from './ui/minigames/ChoppingMiniGame';
@@ -49,11 +49,16 @@ export default function App() {
 
   const setCurrentRoom = useGameStore((s) => s.setCurrentRoom);
   const openMarketStall = useGameStore((s) => s.openMarketStall);
+  const loaded = useGameStore((s) => s.loaded);
+  const orders = useGameStore((s) => s.orders);
   const activeOverlay = useGameStore((s) => s.activeOverlay);
   const heldLockStation = useGameStore((s) => s.heldLockStation);
   const setActiveOverlay = useGameStore((s) => s.setActiveOverlay);
   const setHeldLockStation = useGameStore((s) => s.setHeldLockStation);
   const pushToast = useGameStore((s) => s.pushToast);
+
+  const seenOrderIdsRef = useRef<Set<string>>(new Set());
+  const seededOrdersRef = useRef(false);
 
   const lang = useLanguageStore((s) => s.lang);
   const t = getTranslations(lang);
@@ -94,10 +99,14 @@ export default function App() {
     setCurrentRoom('kitchen');
     playerMotionStore.resetLocal(sx, sz, 'kitchen');
     restaurantMotionStore.reset();
+    seenOrderIdsRef.current.clear();
+    seededOrdersRef.current = false;
 
     let cancelled = false;
     void fetchHomeSnapshot(true).then((snap) => {
       if (cancelled) return;
+      seenOrderIdsRef.current = new Set(snap.orders.map((o) => o.id));
+      seededOrdersRef.current = true;
       const prof = snap.profiles[profileId];
       const displayName = prof?.displayName ?? PROFILES[profileId].defaultName;
       const characterId = prof?.characterId ?? PROFILES[profileId].defaultCharacter;
@@ -178,10 +187,7 @@ export default function App() {
 
         if (candidate) {
           const maxTables = computeMaxActiveTables(onlineCount);
-          const spawnRes = await spawnRestaurantOrder(candidate, maxTables);
-          if (spawnRes.ok) {
-            kitchenAudio.playBell();
-          }
+          await spawnRestaurantOrder(candidate, maxTables);
         }
       } finally {
         running = false;
@@ -194,6 +200,33 @@ export default function App() {
 
     return () => window.clearInterval(timer);
   }, [profileId]);
+
+  // Show a single clickable notification whenever a brand-new waiting order arrives (for both players)
+  useEffect(() => {
+    if (!profileId || !loaded || !seededOrdersRef.current) return;
+
+    const curT = getTranslations(useLanguageStore.getState().lang);
+    for (const order of orders) {
+      if (order.status !== 'waiting') continue;
+      if (seenOrderIdsRef.current.has(order.id)) continue;
+      seenOrderIdsRef.current.add(order.id);
+
+      const recipe = RECIPES[order.recipeId];
+      const tableNum = RESTAURANT_TABLES[order.tableId].tableNumber;
+      kitchenAudio.playBell();
+      pushToast(
+        curT.newOrderToast(
+          tableNum,
+          recipe.icon,
+          curT.recipes[order.recipeId].name,
+          order.customerName,
+          curT.difficultyLabels[order.difficulty],
+        ),
+        'order',
+        'service_pass',
+      );
+    }
+  }, [profileId, loaded, orders, pushToast]);
 
   // Maintain station lock TTL heartbeat (10s) and clean release on pagehide
   useEffect(() => {
@@ -349,7 +382,6 @@ export default function App() {
           />
 
           <TopHudBar profileId={profileId} />
-          <OrderTicketBar profileId={profileId} />
           <ToastLayer />
 
           <FridgeModal

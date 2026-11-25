@@ -73,6 +73,15 @@ interface TranslationBundle {
   enteredKitchenToast: string;
 
   // Restaurant, Orders, Waiter & Service Pass
+  ordersHudBtn: string;
+  newOrderToast: (
+    tableNum: number,
+    icon: string,
+    dishName: string,
+    customerName: string,
+    diffLabel: string,
+  ) => string;
+  tapToOpenOrdersHint: string;
   waiterLabel: string;
   waiterDeliveringShort: string;
   servicePassLabel: string;
@@ -252,6 +261,10 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     enteredRestaurantToast: '🍽️ Restoran salonuna geçtin!',
     enteredKitchenToast: '🏠 Mutfağa döndün!',
 
+    ordersHudBtn: 'Siparişler',
+    newOrderToast: (tableNum, icon, dishName, customerName, diffLabel) =>
+      `🔔 Yeni Sipariş (M${tableNum}): ${icon} ${dishName} — ${customerName} (${diffLabel})`,
+    tapToOpenOrdersHint: 'Aç',
     waiterLabel: 'Garson',
     waiterDeliveringShort: 'Garson yolda',
     servicePassLabel: 'Servis Zili',
@@ -287,7 +300,8 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     soldTakeoutToast: (dishName, coins) => `📦 ${dishName} paket satıldı! +${coins} 🪙`,
     servedStatsLabel: (served, streak) => `Teslim: ${served} · Seri: 🔥 ${streak}`,
     ordersWaitingBadge: (n) => `🔔 ${n} Sipariş`,
-    cookedReadyToast: (icon, name) => `${icon} ${name} hazır! Sipariş fişinden garsona gönderebilirsin.`,
+    cookedReadyToast: (icon, name) =>
+      `${icon} ${name} hazır! Siparişler ekranından veya Servis Zili'nden garsona gönderebilirsin.`,
     cookedInStockShort: (n) => `Hazır tabak: ×${n}`,
 
     stations: {
@@ -539,6 +553,10 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     enteredRestaurantToast: '🍽️ Im Restaurant-Gastraum!',
     enteredKitchenToast: '🏠 Zurück in der Küche!',
 
+    ordersHudBtn: 'Bestellungen',
+    newOrderToast: (tableNum, icon, dishName, customerName, diffLabel) =>
+      `🔔 Neue Bestellung (T${tableNum}): ${icon} ${dishName} — ${customerName} (${diffLabel})`,
+    tapToOpenOrdersHint: 'Öffnen',
     waiterLabel: 'Kellner',
     waiterDeliveringShort: 'Kellner unterwegs',
     servicePassLabel: 'Serviceglocke',
@@ -574,7 +592,8 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     soldTakeoutToast: (dishName, coins) => `📦 ${dishName} verkauft! +${coins} 🪙`,
     servedStatsLabel: (served, streak) => `Serviert: ${served} · Serie: 🔥 ${streak}`,
     ordersWaitingBadge: (n) => `🔔 ${n} offen`,
-    cookedReadyToast: (icon, name) => `${icon} ${name} ist fertig! Sende es über die Bestellleiste an den Kellner.`,
+    cookedReadyToast: (icon, name) =>
+      `${icon} ${name} ist fertig! Über „Bestellungen“ oder die Serviceglocke an den Kellner senden.`,
     cookedInStockShort: (n) => `Fertige Teller: ×${n}`,
 
     stations: {

@@ -181,13 +181,31 @@ export function ServicePassModal({
                 const patience = evaluateOrderPatience(order.createdAt, order.expiresAt, nowMs);
                 const isDelivering = order.status === 'delivering';
 
+                const diffBadge =
+                  order.difficulty === 'easy'
+                    ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-200'
+                    : order.difficulty === 'medium'
+                      ? 'bg-amber-500/20 text-amber-700 dark:text-amber-200'
+                      : 'bg-rose-500/20 text-rose-700 dark:text-rose-200';
+
+                const barColor =
+                  patience.level === 'happy'
+                    ? 'bg-emerald-500'
+                    : patience.level === 'impatient'
+                      ? 'bg-amber-500'
+                      : 'bg-rose-500';
+
                 return (
                   <div
                     key={order.id}
-                    className="ui-surface flex items-center justify-between gap-3 rounded-2xl p-2.5"
+                    className={`ui-surface flex items-center justify-between gap-3 rounded-2xl p-3 ${
+                      !isDelivering && patience.level === 'urgent'
+                        ? 'ring-2 ring-rose-500/50'
+                        : ''
+                    }`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span className="rounded-md bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-800 dark:text-amber-200">
                           {t.tableLabel(tableNum)}
                         </span>
@@ -195,16 +213,37 @@ export function ServicePassModal({
                         <span className="truncate text-xs font-extrabold">
                           {t.recipes[recipe.id].name}
                         </span>
-                        <span className="text-[10px] ui-muted">
-                          ({t.difficultyLabels[order.difficulty]})
+                        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-extrabold ${diffBadge}`}>
+                          {t.difficultyLabels[order.difficulty]}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-[11px] ui-muted">
-                        {order.customerName} ·{' '}
-                        {isDelivering
-                          ? `🤵 ${t.waiterDeliveringShort}`
-                          : `⏱ ${formatRemainingTime(patience.remainingMs)}`}
-                      </p>
+
+                      {isDelivering ? (
+                        <p className="text-[11px] font-bold text-sky-700 dark:text-sky-300">
+                          {order.customerName} · 🤵 {t.waiterDeliveringShort}
+                        </p>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="ui-muted">{order.customerName}</span>
+                            <span
+                              className={
+                                patience.level === 'urgent'
+                                  ? 'animate-pulse font-extrabold text-rose-600 dark:text-rose-300'
+                                  : 'font-bold tabular-nums'
+                              }
+                            >
+                              ⏱ {formatRemainingTime(patience.remainingMs)}
+                            </span>
+                          </div>
+                          <div className="ui-subtle h-1.5 w-full overflow-hidden rounded-full">
+                            <div
+                              className={`h-full rounded-full transition-[width] duration-300 ${barColor}`}
+                              style={{ width: `${Math.round(patience.ratio * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {isDelivering ? (

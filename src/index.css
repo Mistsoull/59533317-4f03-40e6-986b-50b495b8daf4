@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+:root {
+  --target-size: 24px;
+  --surface-warm: #1e1b18;
+  --surface-card: #292420;
+  --accent-terracotta: #e07a5f;
+  --accent-sage: #3d9970;
+  --accent-honey: #f2cc8f;
+  color-scheme: dark;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --target-size: 44px;
+  }
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100dvw;
+  height: 100dvh;
+  background-color: var(--surface-warm);
+  color: #faf5ef;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overflow-wrap: break-word;
+}
+
+/* Mandatory touch handling for 3D scene and game shell on iOS Safari & Android Chrome */
+.game-shell,
+.game-shell canvas {
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Allow vertical touch scrolling inside scrollable modal panels */
+.modal-scroll-area {
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Form factor & touch target accessibility (modern-web-guidance: form-factor-adaptation) */
+:where(button, input:not([type="checkbox"], [type="radio"]), select, textarea) {
+  min-block-size: var(--target-size);
+}
+
+:where(h1, h2, h3) {
+  text-wrap: balance;
+}
+
+:where(p, li) {
+  text-wrap: pretty;
+}
+
+/* Safe-area padding utilities for iPhone 17 Pro Dynamic Island in landscape */
+.safe-top {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+.safe-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+.safe-x {
+  padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
+/* Native modal <dialog> styling (modern-web-guidance: dialog & light-dismiss-a-dialog) */
+dialog:modal {
+  overscroll-behavior: contain;
+  border: 1px solid rgba(255, 245, 235, 0.14);
+  border-radius: 1.25rem;
+  background: #241f1b;
+  color: #faf5ef;
+  padding: 0;
+  margin: auto;
+  max-inline-size: min(92dvw, 48rem);
+  max-block-size: min(88dvh, 34rem);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+dialog::backdrop {
+  background: rgba(15, 12, 10, 0.68);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}

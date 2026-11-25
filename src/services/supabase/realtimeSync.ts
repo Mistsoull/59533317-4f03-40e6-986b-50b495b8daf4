@@ -1,10 +1,18 @@
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import type { CharacterId } from '../../config/characters';
 import { PROFILES, type ProfileId } from '../../config/profiles';
 import type { RecipeId } from '../../config/recipes';
 import type { RoomId, StationId } from '../../config/kitchenLayout';
+import {
+  EMPTY_LOBBY_OCCUPANCY,
+  buildLobbyOccupancy,
+  isValidCharacterId,
+  isValidProfileId,
+  type LobbyOccupancy,
+  type OccupiedEntry,
+} from '../../domain/lobbyOccupancy';
 import { getTranslations } from '../../i18n/translations';
-import { getSupabaseClient } from './client';
+import { createLobbyObserverClient, getSupabaseClient } from './client';
 import type {
   AnimState,
   BroadcastPlayerPayload,
@@ -24,6 +32,7 @@ const IDLE_HEARTBEAT_MS = 3000; // Low-rate state sync so late joiners never mis
 type LocalChannelMsg =
   | { type: 'player_state'; payload: BroadcastPlayerPayload }
   | { type: 'sync_request'; from: ProfileId }
+  | { type: 'lobby_probe' }
   | { type: 'presence_ping'; payload: PresencePayload }
   | { type: 'presence_leave'; profileId: ProfileId }
   | { type: 'home_snapshot'; payload: HomeSnapshot };
@@ -35,6 +44,16 @@ function makeNonce(): string {
 class KitchenRealtimeSync {
   private channel: RealtimeChannel | null = null;
   private isSupabaseSubscribed = false;
+  private lobbyObserverClient: SupabaseClient | null = null;
+  private lobbyChannel: RealtimeChannel | null = null;
+  private lobbyLocalChannel: BroadcastChannel | null = null;
+  private lobbyLocalSweepTimer: number | null = null;
+  private lobbyLocalEntries = new Map<ProfileId, { entry: OccupiedEntry; lastSeen: number }>();
+  private lobbyListeners = new Set<(occupancy: LobbyOccupancy) => void>();
+  private currentLobbyOccupancy: LobbyOccupancy = EMPTY_LOBBY_OCCUPANCY;
+  private pendingChannelRemoval: Promise<unknown> | null = null;
+  private lifecycleToken = 0;
+
   private localChannel: BroadcastChannel | null = null;
   private localPresenceTimer: number | null = null;
   private idleHeartbeatTimer: number | null = null;
@@ -56,8 +75,169 @@ class KitchenRealtimeSync {
   private lastSentAnim: AnimState = 'Idle';
   private lastSentRoom: RoomId = 'kitchen';
 
+  private setLobbyOccupancy(next: LobbyOccupancy): void {
+    this.currentLobbyOccupancy = next;
+    for (const listener of this.lobbyListeners) {
+      listener(next);
+    }
+  }
+
+  public getLobbyOccupancy(): LobbyOccupancy {
+    return this.currentLobbyOccupancy;
+  }
+
+  /**
+   * Read-only presence observer for the login screen (ProfilePinGate).
+   * Never calls channel.track(), so unauthenticated viewers never appear as online players.
+   */
+  public observeLobby(listener: (occupancy: LobbyOccupancy) => void): () => void {
+    this.lobbyListeners.add(listener);
+    listener(this.currentLobbyOccupancy);
+
+    if (!this.myProfileId && !this.lobbyChannel && !this.lobbyLocalChannel) {
+      this.startLobbyObserver();
+    }
+
+    return () => {
+      this.lobbyListeners.delete(listener);
+      if (this.lobbyListeners.size === 0 && !this.myProfileId) {
+        void this.stopLobbyObserver();
+      }
+    };
+  }
+
+  public restartLobbyObserver(): void {
+    if (this.lobbyListeners.size === 0 || this.myProfileId) return;
+    void this.stopLobbyObserver().then(() => {
+      if (this.lobbyListeners.size > 0 && !this.myProfileId) {
+        this.startLobbyObserver();
+      }
+    });
+  }
+
+  private startLobbyObserver(): void {
+    const token = ++this.lifecycleToken;
+    this.setLobbyOccupancy(EMPTY_LOBBY_OCCUPANCY);
+
+    const obsClient = createLobbyObserverClient();
+    if (obsClient) {
+      if (this.lifecycleToken !== token || this.myProfileId || this.lobbyListeners.size === 0) {
+        return;
+      }
+      this.lobbyObserverClient = obsClient;
+
+      // Read-only observer on an isolated socket: NEVER calls channel.track().
+      const ch = obsClient.channel(HOME_CHANNEL_NAME, {
+        config: {
+          broadcast: { self: false, ack: false },
+        },
+      });
+
+      ch.on('presence', { event: 'sync' }, () => {
+        const state = ch.presenceState<PresencePayload>();
+        const entries: OccupiedEntry[] = [];
+        for (const presences of Object.values(state)) {
+          const latest = presences[presences.length - 1];
+          if (!latest || !isValidProfileId(latest.profileId)) continue;
+          const charId = isValidCharacterId(latest.characterId)
+            ? latest.characterId
+            : PROFILES[latest.profileId].defaultCharacter;
+          entries.push({
+            profileId: latest.profileId,
+            displayName: latest.displayName || PROFILES[latest.profileId].defaultName,
+            characterId: charId,
+          });
+        }
+        this.setLobbyOccupancy(buildLobbyOccupancy(entries));
+      });
+
+      ch.subscribe();
+      this.lobbyChannel = ch;
+      return;
+    }
+
+    // Local multi-tab demo mode via BroadcastChannel
+    if (typeof BroadcastChannel === 'undefined') return;
+    this.lobbyLocalEntries.clear();
+    const bc = new BroadcastChannel(LOCAL_BC_NAME);
+    this.lobbyLocalChannel = bc;
+
+    const flushLocal = () => {
+      const now = Date.now();
+      for (const [pid, rec] of this.lobbyLocalEntries.entries()) {
+        if (now - rec.lastSeen > 6000) {
+          this.lobbyLocalEntries.delete(pid);
+        }
+      }
+      const entries = Array.from(this.lobbyLocalEntries.values()).map((r) => r.entry);
+      this.setLobbyOccupancy(buildLobbyOccupancy(entries));
+    };
+
+    bc.onmessage = (event: MessageEvent<LocalChannelMsg>) => {
+      const msg = event.data;
+      if (!msg) return;
+      if (msg.type === 'presence_ping') {
+        const p = msg.payload;
+        if (!isValidProfileId(p.profileId)) return;
+        const charId = isValidCharacterId(p.characterId)
+          ? p.characterId
+          : PROFILES[p.profileId].defaultCharacter;
+        this.lobbyLocalEntries.set(p.profileId, {
+          entry: {
+            profileId: p.profileId,
+            displayName: p.displayName || PROFILES[p.profileId].defaultName,
+            characterId: charId,
+          },
+          lastSeen: Date.now(),
+        });
+        flushLocal();
+      } else if (msg.type === 'presence_leave') {
+        if (this.lobbyLocalEntries.delete(msg.profileId)) {
+          flushLocal();
+        }
+      }
+    };
+
+    bc.postMessage({ type: 'lobby_probe' } satisfies LocalChannelMsg);
+    this.lobbyLocalSweepTimer = window.setInterval(flushLocal, 2000);
+  }
+
+  public async stopLobbyObserver(): Promise<void> {
+    if (
+      !this.lobbyChannel &&
+      !this.lobbyObserverClient &&
+      !this.lobbyLocalChannel &&
+      this.lobbyLocalSweepTimer === null
+    ) {
+      return;
+    }
+    this.lifecycleToken += 1;
+    if (this.lobbyLocalSweepTimer !== null) {
+      window.clearInterval(this.lobbyLocalSweepTimer);
+      this.lobbyLocalSweepTimer = null;
+    }
+    if (this.lobbyLocalChannel) {
+      this.lobbyLocalChannel.close();
+      this.lobbyLocalChannel = null;
+    }
+    this.lobbyLocalEntries.clear();
+
+    const ch = this.lobbyChannel;
+    const obsClient = this.lobbyObserverClient;
+    this.lobbyChannel = null;
+    this.lobbyObserverClient = null;
+
+    if (obsClient) {
+      if (ch) {
+        await obsClient.removeChannel(ch).catch(() => undefined);
+      }
+      await obsClient.realtime.disconnect().catch(() => undefined);
+    }
+  }
+
   public connect(profileId: ProfileId, displayName: string, characterId: CharacterId): void {
     this.disconnect();
+    const token = ++this.lifecycleToken;
     this.myProfileId = profileId;
     this.myDisplayName = displayName;
     this.myCharacterId = characterId;
@@ -69,7 +249,15 @@ class KitchenRealtimeSync {
 
     const supabase = getSupabaseClient();
     if (supabase) {
-      this.connectSupabase(profileId, displayName, characterId);
+      if (this.pendingChannelRemoval) {
+        void this.pendingChannelRemoval.finally(() => {
+          if (this.lifecycleToken === token && this.myProfileId === profileId) {
+            this.connectSupabase(profileId, displayName, characterId);
+          }
+        });
+      } else {
+        this.connectSupabase(profileId, displayName, characterId);
+      }
     } else {
       this.connectLocalChannel(profileId, displayName, characterId);
     }
@@ -386,6 +574,8 @@ class KitchenRealtimeSync {
         if (msg.from === this.myProfileId) return;
         this.sendImmediateState();
         this.trackPresence();
+      } else if (msg.type === 'lobby_probe') {
+        this.trackPresence();
       } else if (msg.type === 'presence_ping') {
         const p = msg.payload;
         if (p.profileId === this.myProfileId) return;
@@ -532,6 +722,31 @@ class KitchenRealtimeSync {
   }
 
   public disconnect(): void {
+    this.lifecycleToken += 1;
+
+    if (this.lobbyLocalSweepTimer !== null) {
+      window.clearInterval(this.lobbyLocalSweepTimer);
+      this.lobbyLocalSweepTimer = null;
+    }
+    if (this.lobbyLocalChannel) {
+      this.lobbyLocalChannel.close();
+      this.lobbyLocalChannel = null;
+    }
+    this.lobbyLocalEntries.clear();
+
+    if (this.lobbyObserverClient || this.lobbyChannel) {
+      const lobbyCh = this.lobbyChannel;
+      const obsClient = this.lobbyObserverClient;
+      this.lobbyChannel = null;
+      this.lobbyObserverClient = null;
+      if (obsClient) {
+        void (lobbyCh ? obsClient.removeChannel(lobbyCh).catch(() => undefined) : Promise.resolve())
+          .finally(() => {
+            void obsClient.realtime.disconnect().catch(() => undefined);
+          });
+      }
+    }
+
     if (this.localPresenceTimer !== null) {
       window.clearInterval(this.localPresenceTimer);
       this.localPresenceTimer = null;
@@ -562,14 +777,22 @@ class KitchenRealtimeSync {
 
     if (this.channel) {
       this.isSupabaseSubscribed = false;
+      const ch = this.channel;
+      this.channel = null;
       const supabase = getSupabaseClient();
       if (supabase) {
-        void supabase.removeChannel(this.channel);
+        const removal = supabase.removeChannel(ch).catch(() => undefined);
+        this.pendingChannelRemoval = removal;
+        void removal.finally(() => {
+          if (this.pendingChannelRemoval === removal) {
+            this.pendingChannelRemoval = null;
+          }
+        });
       }
-      this.channel = null;
     }
 
     this.myProfileId = null;
+    this.setLobbyOccupancy(EMPTY_LOBBY_OCCUPANCY);
     playerMotionStore.setRemoteActive(false, null);
     useSessionStore.getState().setConnectionStatus('disconnected');
   }

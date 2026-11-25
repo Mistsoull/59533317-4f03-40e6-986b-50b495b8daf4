@@ -29,6 +29,10 @@ interface TranslationBundle {
   namePlaceholder: string;
   nameAriaLabel: string;
   chooseCharacter: string;
+  inGameBadge: string;
+  takenBadge: string;
+  allSlotsOccupiedError: string;
+  slotOrCharTakenError: string;
   sharedPin: string;
   enterBtn: string;
   supabaseSetupTitle: string;
@@ -170,6 +174,12 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     namePlaceholder: 'İsmini yaz (örn: Uğur)...',
     nameAriaLabel: 'Oyuncu İsmi',
     chooseCharacter: 'Karakterini Seç',
+    inGameBadge: 'Oyunda',
+    takenBadge: 'Seçili',
+    allSlotsOccupiedError:
+      'Her iki oyuncu da şu an oyunda. Bir oyuncu çıktığında giriş yapabilirsin.',
+    slotOrCharTakenError:
+      'Seçtiğin oyuncu veya karakter şu an başka biri tarafından kullanılıyor.',
     sharedPin: 'Ortak PIN',
     enterBtn: 'GİR',
     supabaseSetupTitle: 'Supabase Bağlantısı',
@@ -408,6 +418,12 @@ export const TRANSLATIONS: Record<Language, TranslationBundle> = {
     namePlaceholder: 'Dein Name (z.B. Anna)...',
     nameAriaLabel: 'Spielername',
     chooseCharacter: 'Charakter wählen',
+    inGameBadge: 'Im Spiel',
+    takenBadge: 'Belegt',
+    allSlotsOccupiedError:
+      'Beide Spieler sind gerade im Spiel. Sobald jemand geht, kannst du beitreten.',
+    slotOrCharTakenError:
+      'Dieser Spieler oder Charakter wird gerade von jemand anderem benutzt.',
     sharedPin: 'Gemeinsame PIN',
     enterBtn: 'LOS',
     supabaseSetupTitle: 'Supabase-Verbindung',

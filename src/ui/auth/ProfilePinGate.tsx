@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Cloud, HardDrive, Lock, Moon, Settings2, Sun, User } from 'lucide-react';
 import { CHARACTER_LIST, type CharacterId } from '../../config/characters';
 import {
@@ -8,14 +8,25 @@ import {
   type ProfileId,
 } from '../../config/profiles';
 import { kitchenAudio } from '../../domain/audio';
+import {
+  EMPTY_LOBBY_OCCUPANCY,
+  areAllProfilesOccupied,
+  canEnterGame,
+  isCharacterOccupied,
+  isProfileOccupied,
+  pickAvailableCharacter,
+  pickAvailableProfile,
+  type LobbyOccupancy,
+} from '../../domain/lobbyOccupancy';
 import { getTranslations } from '../../i18n/translations';
-import { signInWithProfilePin } from '../../services/supabase/auth';
+import { signInWithProfilePin, signOutProfile } from '../../services/supabase/auth';
 import {
   getSupabaseConfig,
   isSupabaseConfigured,
   saveSupabaseRuntimeConfig,
 } from '../../services/supabase/client';
 import { updateMyProfile } from '../../services/supabase/homeRepository';
+import { kitchenRealtime } from '../../services/supabase/realtimeSync';
 import { useLanguageStore } from '../../store/useLanguageStore';
 import type { BackendMode } from '../../store/useSessionStore';
 import { useThemeStore } from '../../store/useThemeStore';
@@ -49,9 +60,11 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
   const [selectedProfile, setSelectedProfile] = useState<ProfileId>('p1');
   const [customName, setCustomName] = useState<string>(() => readSavedName('p1'));
   const [selectedChar, setSelectedChar] = useState<CharacterId>(() => readSavedChar('p1'));
+  const [occupancy, setOccupancy] = useState<LobbyOccupancy>(EMPTY_LOBBY_OCCUPANCY);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const nameDirtyRef = useRef(false);
 
   const lang = useLanguageStore((s) => s.lang);
   const setLang = useLanguageStore((s) => s.setLang);
@@ -66,18 +79,74 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
   const [supaAnon, setSupaAnon] = useState(existingCfg?.anonKey ?? '');
   const [supabaseReady, setSupabaseReady] = useState(isSupabaseConfigured);
 
+  // Observe live in-game Presence so already-active players & characters cannot be clicked
+  useEffect(() => {
+    return kitchenRealtime.observeLobby((next) => {
+      setOccupancy(next);
+    });
+  }, []);
+
+  // Automatically switch to an available player slot & character if current choice is occupied
+  useEffect(() => {
+    const freeProfile = pickAvailableProfile(selectedProfile, occupancy);
+    if (freeProfile && freeProfile !== selectedProfile) {
+      setSelectedProfile(freeProfile);
+      if (!nameDirtyRef.current) {
+        setCustomName(readSavedName(freeProfile));
+      }
+      const preferredChar = readSavedChar(freeProfile);
+      const nextChar = pickAvailableCharacter(preferredChar, occupancy);
+      if (nextChar) {
+        setSelectedChar(nextChar);
+      }
+      return;
+    }
+
+    const freeChar = pickAvailableCharacter(selectedChar, occupancy);
+    if (freeChar && freeChar !== selectedChar) {
+      setSelectedChar(freeChar);
+    }
+  }, [occupancy, selectedProfile, selectedChar]);
+
+  const allOccupied = areAllProfilesOccupied(occupancy);
+  const canEnter = !allOccupied && canEnterGame(selectedProfile, selectedChar, occupancy);
+
   const handleSelectSlot = (pid: ProfileId) => {
+    if (isProfileOccupied(occupancy, pid)) return;
     kitchenAudio.unlockSync();
     kitchenAudio.playTap();
+    setError(null);
     setSelectedProfile(pid);
+    nameDirtyRef.current = false;
     setCustomName(readSavedName(pid));
-    setSelectedChar(readSavedChar(pid));
+    const nextChar = pickAvailableCharacter(readSavedChar(pid), occupancy);
+    if (nextChar) {
+      setSelectedChar(nextChar);
+    }
+  };
+
+  const handleSelectChar = (charId: CharacterId) => {
+    if (isCharacterOccupied(occupancy, charId)) return;
+    kitchenAudio.unlockSync();
+    kitchenAudio.playTap();
+    setError(null);
+    setSelectedChar(charId);
   };
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
     kitchenAudio.unlockSync();
     setError(null);
+
+    const liveBefore = kitchenRealtime.getLobbyOccupancy();
+    if (!canEnterGame(selectedProfile, selectedChar, liveBefore)) {
+      kitchenAudio.playError();
+      setError(
+        areAllProfilesOccupied(liveBefore) ? t.allSlotsOccupiedError : t.slotOrCharTakenError,
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     const res = await signInWithProfilePin(selectedProfile, pin);
@@ -85,6 +154,18 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
       setSubmitting(false);
       kitchenAudio.playError();
       setError(res.error ?? 'Giriş yapılamadı.');
+      return;
+    }
+
+    // Re-check live occupancy right before updating profile in case of simultaneous entry
+    const liveAfter = kitchenRealtime.getLobbyOccupancy();
+    if (!canEnterGame(res.profileId, selectedChar, liveAfter)) {
+      await signOutProfile();
+      setSubmitting(false);
+      kitchenAudio.playError();
+      setError(
+        areAllProfilesOccupied(liveAfter) ? t.allSlotsOccupiedError : t.slotOrCharTakenError,
+      );
       return;
     }
 
@@ -97,6 +178,7 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
     }
 
     await updateMyProfile(res.profileId, finalName, selectedChar);
+    await kitchenRealtime.stopLobbyObserver();
     setSubmitting(false);
     kitchenAudio.playSuccess();
     onSignedIn(res.profileId, res.backendMode);
@@ -121,12 +203,14 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
       saveSupabaseRuntimeConfig(null);
       setSupabaseReady(false);
       setShowSetup(false);
+      kitchenRealtime.restartLobbyObserver();
       return;
     }
     saveSupabaseRuntimeConfig({ url: supaUrl, anonKey: supaAnon });
     setSupabaseReady(isSupabaseConfigured());
     setShowSetup(false);
     setError(null);
+    kitchenRealtime.restartLobbyObserver();
   };
 
   return (
@@ -214,21 +298,33 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
               aria-label="Slot"
             >
               {PROFILE_LIST.map((prof, idx) => {
-                const active = selectedProfile === prof.id;
+                const occupant = occupancy.profiles[prof.id];
+                const taken = Boolean(occupant);
+                const active = !taken && selectedProfile === prof.id;
                 return (
                   <button
                     key={prof.id}
                     type="button"
                     role="radio"
+                    disabled={taken}
+                    aria-disabled={taken}
                     aria-checked={active}
+                    title={taken ? `${occupant?.displayName} — ${t.inGameBadge}` : undefined}
                     onClick={() => handleSelectSlot(prof.id)}
-                    className={`rounded-xl border-2 px-2 py-2 text-xs font-extrabold transition active:scale-95 ${
-                      active
-                        ? 'border-[#e07a5f] bg-[#e07a5f]/15 text-[#c85a3f]'
-                        : 'ui-surface opacity-75 hover:opacity-100'
+                    className={`flex flex-col items-center justify-center rounded-xl border-2 px-2 py-1.5 text-xs font-extrabold transition ${
+                      taken
+                        ? 'ui-surface cursor-not-allowed opacity-45 grayscale-[30%]'
+                        : active
+                          ? 'border-[#e07a5f] bg-[#e07a5f]/15 text-[#c85a3f] active:scale-95'
+                          : 'ui-surface opacity-75 hover:opacity-100 active:scale-95'
                     }`}
                   >
-                    {t.playerSlot(idx + 1)}
+                    <span>{t.playerSlot(idx + 1)}</span>
+                    {taken && (
+                      <span className="mt-0.5 max-w-full truncate text-[10px] font-bold ui-muted">
+                        🔒 {t.inGameBadge}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -243,7 +339,10 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                 type="text"
                 maxLength={20}
                 value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
+                onChange={(e) => {
+                  nameDirtyRef.current = true;
+                  setCustomName(e.target.value);
+                }}
                 placeholder={t.namePlaceholder}
                 aria-label={t.nameAriaLabel}
                 className="ui-surface w-full rounded-xl py-2 pl-9 pr-3 text-xs font-bold focus:outline-2 focus:outline-[#e07a5f]"
@@ -261,23 +360,26 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
               aria-label={t.chooseCharacter}
             >
               {CHARACTER_LIST.map((ch) => {
-                const active = selectedChar === ch.id;
+                const occupant = occupancy.characters[ch.id];
+                const taken = Boolean(occupant);
+                const active = !taken && selectedChar === ch.id;
                 const localized = t.characters[ch.id];
                 return (
                   <button
                     key={ch.id}
                     type="button"
                     role="radio"
+                    disabled={taken}
+                    aria-disabled={taken}
                     aria-checked={active}
-                    onClick={() => {
-                      kitchenAudio.unlockSync();
-                      kitchenAudio.playTap();
-                      setSelectedChar(ch.id);
-                    }}
-                    className={`flex flex-col items-center gap-1 rounded-2xl border-2 p-2 transition active:scale-95 ${
-                      active
-                        ? 'scale-[1.02] shadow-md'
-                        : 'ui-surface opacity-80 hover:opacity-100'
+                    title={taken ? `${occupant?.displayName} — ${t.takenBadge}` : undefined}
+                    onClick={() => handleSelectChar(ch.id)}
+                    className={`flex flex-col items-center gap-1 rounded-2xl border-2 p-2 transition ${
+                      taken
+                        ? 'ui-surface cursor-not-allowed opacity-40 grayscale'
+                        : active
+                          ? 'scale-[1.02] shadow-md active:scale-95'
+                          : 'ui-surface opacity-80 hover:opacity-100 active:scale-95'
                     }`}
                     style={
                       active
@@ -293,7 +395,15 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                       {ch.emoji}
                     </span>
                     <span className="text-xs font-extrabold">{localized.name}</span>
-                    <span className="text-[10px] ui-muted leading-tight">{localized.tagline}</span>
+                    {taken ? (
+                      <span className="max-w-full truncate rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-bold leading-tight dark:bg-white/15">
+                        🔒 {occupant?.displayName || t.takenBadge}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] ui-muted leading-tight">
+                        {localized.tagline}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -386,19 +496,19 @@ export function ProfilePinGate({ onSignedIn }: ProfilePinGateProps) {
                 ))}
                 <button
                   type="submit"
-                  disabled={submitting || pin.length < 4}
+                  disabled={submitting || pin.length < 4 || !canEnter}
                   className="rounded-xl bg-[#e07a5f] py-2 text-sm font-extrabold text-white shadow-md transition active:scale-95 disabled:opacity-45"
                 >
                   {submitting ? '...' : t.enterBtn}
                 </button>
               </div>
 
-              {error && (
+              {(error || allOccupied) && (
                 <p
                   role="alert"
                   className="rounded-lg bg-rose-500/15 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 dark:text-rose-200"
                 >
-                  {error}
+                  {error ?? t.allSlotsOccupiedError}
                 </p>
               )}
             </form>

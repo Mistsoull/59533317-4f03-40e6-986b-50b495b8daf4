@@ -78,3 +78,22 @@ export function getSupabaseClient(): SupabaseClient | null {
 
   return cachedClient;
 }
+
+/**
+ * Ephemeral anonymous client strictly for read-only lobby Presence observation.
+ * Keeping this socket separate from the main authenticated SupabaseClient avoids
+ * auth-upgrade / topic-rejoin interference on `kitchen:home` during sign-in.
+ */
+export function createLobbyObserverClient(): SupabaseClient | null {
+  const cfg = getSupabaseConfig();
+  if (!cfg) return null;
+
+  return createClient(cfg.url, cfg.anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storageKey: 'cozy_kitchen_lobby_observer_ephemeral',
+    },
+  });
+}

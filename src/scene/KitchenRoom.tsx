@@ -31,12 +31,16 @@ function useKitchenFloorTexture(): THREE.CanvasTexture {
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(8, 6);
+    tex.repeat.set(24, 22);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }, []);
 }
 
+/**
+ * Full-screen enclosed 3-walled interior Kitchen ("Bizim Mutfak").
+ * Seamless floor & tall perimeter walls fill 100% of the viewport with zero outer void.
+ */
 export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
   const floorTexture = useKitchenFloorTexture();
   const downPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -58,48 +62,86 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
 
   return (
     <group>
-      {/* Bright warm checkered floor (8m x 6m, y = 0) */}
+      {/* Seamless full-interior checkered tile floor extending well past camera frustum */}
       <mesh
-        position={[0, -0.1, 0]}
+        position={[0, -0.05, 1.5]}
         receiveShadow
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
       >
-        <boxGeometry args={[8, 0.2, 6]} />
+        <boxGeometry args={[24, 0.1, 22]} />
         <meshStandardMaterial map={floorTexture} roughness={0.82} />
       </mesh>
 
-      {/* Clean warm oak trim plinth */}
-      <mesh position={[0, -0.25, 0]}>
-        <boxGeometry args={[8.26, 0.14, 6.26]} />
-        <meshStandardMaterial color="#8c6244" roughness={0.85} />
-      </mesh>
-
-      {/* Back Cutaway Wall (z = -3) */}
-      <mesh position={[0, 1.35, -3.08]} receiveShadow>
-        <boxGeometry args={[8.16, 2.7, 0.16]} />
+      {/* ==================== TALL ENCLOSING BACK WALL (z = -3.15) ==================== */}
+      <mesh position={[0, 3.2, -3.15]} receiveShadow>
+        <boxGeometry args={[18, 6.4, 0.2]} />
         <meshStandardMaterial color="#fff7ec" roughness={0.88} />
       </mesh>
-      {/* Sage mint subway tile backsplash */}
-      <mesh position={[-0.45, 1.25, -2.99]} receiveShadow>
-        <boxGeometry args={[6.9, 0.72, 0.03]} />
+      {/* Sage mint subway tile backsplash along back wall */}
+      <mesh position={[-0.4, 1.25, -3.03]} receiveShadow>
+        <boxGeometry args={[7.4, 0.78, 0.04]} />
         <meshStandardMaterial color="#cde6da" roughness={0.52} />
       </mesh>
-
-      {/* Left Cutaway Wall (x = -4) */}
-      <mesh position={[-4.08, 1.35, 0]} receiveShadow>
-        <boxGeometry args={[0.16, 2.7, 6.16]} />
-        <meshStandardMaterial color="#f8eee0" roughness={0.88} />
+      {/* Warm oak upper picture rail */}
+      <mesh position={[0, 2.55, -3.02]}>
+        <boxGeometry args={[17.8, 0.08, 0.06]} />
+        <meshStandardMaterial color="#b07d4f" roughness={0.68} />
       </mesh>
 
-      {/* Sunlit Kitchen Window on Left Wall */}
-      <group position={[-3.98, 1.65, -0.55]}>
+      {/* ==================== TALL ENCLOSING LEFT WALL (x = -4.18) ==================== */}
+      <mesh position={[-4.18, 3.2, 1.5]} receiveShadow>
+        <boxGeometry args={[0.2, 6.4, 16]} />
+        <meshStandardMaterial color="#f8eee0" roughness={0.88} />
+      </mesh>
+      <mesh position={[-4.06, 0.45, 1.5]} receiveShadow>
+        <boxGeometry args={[0.04, 0.9, 15.8]} />
+        <meshStandardMaterial color="#e8d9c5" roughness={0.78} />
+      </mesh>
+      <mesh position={[-4.04, 2.55, 1.5]}>
+        <boxGeometry args={[0.06, 0.08, 15.8]} />
+        <meshStandardMaterial color="#b07d4f" roughness={0.68} />
+      </mesh>
+
+      {/* ==================== TALL ENCLOSING RIGHT WALL (x = +4.18) ==================== */}
+      <mesh position={[4.18, 3.2, 1.5]} receiveShadow>
+        <boxGeometry args={[0.2, 6.4, 16]} />
+        <meshStandardMaterial color="#f8eee0" roughness={0.88} />
+      </mesh>
+      <mesh position={[4.06, 0.45, 1.5]} receiveShadow>
+        <boxGeometry args={[0.04, 0.9, 15.8]} />
+        <meshStandardMaterial color="#e8d9c5" roughness={0.78} />
+      </mesh>
+      <mesh position={[4.04, 2.55, 1.5]}>
+        <boxGeometry args={[0.06, 0.08, 15.8]} />
+        <meshStandardMaterial color="#b07d4f" roughness={0.68} />
+      </mesh>
+
+      {/* Kitchen-to-Restaurant Pass-Through Window on Right Wall above Service Pass */}
+      <group position={[4.05, 1.62, 0.38]}>
         <mesh>
-          <boxGeometry args={[0.06, 1.08, 1.72]} />
+          <boxGeometry args={[0.08, 0.96, 1.38]} />
           <meshStandardMaterial color="#8c5a34" roughness={0.7} />
         </mesh>
-        <mesh position={[0.02, 0, 0]}>
-          <boxGeometry args={[0.03, 0.94, 1.56]} />
+        <mesh position={[-0.048, 0, 0]}>
+          <boxGeometry args={[0.02, 0.8, 1.22]} />
+          <meshStandardMaterial
+            color="#ffe9c7"
+            emissive="#ffd28a"
+            emissiveIntensity={0.42}
+            roughness={0.32}
+          />
+        </mesh>
+      </group>
+
+      {/* Sunlit Kitchen Window on Left Wall */}
+      <group position={[-4.05, 1.72, -0.55]}>
+        <mesh>
+          <boxGeometry args={[0.07, 1.15, 1.82]} />
+          <meshStandardMaterial color="#8c5a34" roughness={0.7} />
+        </mesh>
+        <mesh position={[0.044, 0, 0]}>
+          <boxGeometry args={[0.02, 1.0, 1.66]} />
           <meshStandardMaterial
             color="#bce7fb"
             emissive="#fff6da"
@@ -107,17 +149,17 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
             roughness={0.2}
           />
         </mesh>
-        <mesh position={[0.04, 0, 0]}>
-          <boxGeometry args={[0.03, 0.96, 0.05]} />
+        <mesh position={[0.062, 0, 0]}>
+          <boxGeometry args={[0.02, 1.02, 0.05]} />
           <meshStandardMaterial color="#8c5a34" roughness={0.7} />
         </mesh>
-        <mesh position={[0.04, 0, 0]}>
-          <boxGeometry args={[0.03, 0.05, 1.58]} />
+        <mesh position={[0.062, 0, 0]}>
+          <boxGeometry args={[0.02, 0.05, 1.68]} />
           <meshStandardMaterial color="#8c5a34" roughness={0.7} />
         </mesh>
       </group>
 
-      {/* Decorative Wall Shelf stocked with REAL sculpted 3D food items (no plain cylinders!) */}
+      {/* Decorative Wall Shelf stocked with sculpted 3D food items */}
       <group position={[-0.05, 1.94, -2.84]}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[2.35, 0.07, 0.32]} />
@@ -141,13 +183,12 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
       </group>
 
       {/* Seamless Connecting Back Counters (Left Corner -> Cutting Board -> Stove -> Space for Fridge) */}
-      {/* Corner + counter left of Cutting Board (x: -3.96..-1.80) */}
-      <mesh position={[-2.88, 0.43, -2.42]} castShadow receiveShadow>
-        <boxGeometry args={[2.16, 0.86, 0.88]} />
+      <mesh position={[-2.92, 0.43, -2.42]} castShadow receiveShadow>
+        <boxGeometry args={[2.24, 0.86, 0.88]} />
         <meshStandardMaterial color="#e8d9c5" roughness={0.75} />
       </mesh>
-      <mesh position={[-2.88, 0.89, -2.42]} castShadow receiveShadow>
-        <boxGeometry args={[2.2, 0.07, 0.94]} />
+      <mesh position={[-2.92, 0.89, -2.42]} castShadow receiveShadow>
+        <boxGeometry args={[2.28, 0.07, 0.94]} />
         <meshStandardMaterial color="#fff9f0" roughness={0.45} />
       </mesh>
 
@@ -160,7 +201,6 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
         <boxGeometry args={[1.02, 0.07, 0.94]} />
         <meshStandardMaterial color="#fff9f0" roughness={0.45} />
       </mesh>
-      {/* Egg carton resting on prep counter next to stove */}
       <group position={[-0.05, 0.925, -2.38]} rotation={[0, 0.25, 0]} scale={1.1}>
         <ModelSlot assetId="food_yumurta" placeholder={null} />
       </group>
@@ -174,7 +214,6 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
         <boxGeometry args={[1.06, 0.07, 0.94]} />
         <meshStandardMaterial color="#fff9f0" roughness={0.45} />
       </mesh>
-      {/* Fresh mushrooms & cream resting next to fridge */}
       <group position={[2.02, 0.925, -2.38]} scale={0.95}>
         <ModelSlot assetId="food_mantar" placeholder={null} />
       </group>
@@ -182,22 +221,20 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
         <ModelSlot assetId="food_krema" placeholder={null} />
       </group>
 
-      {/* Left Side Counter + Sink (joins corner cleanly, ends at z = 0.95 leaving room for Market Door!) */}
-      <group position={[-3.46, 0, -0.52]}>
+      {/* Left Side Counter + Sink (ends at z = 0.95 leaving wide clearance for Market Door) */}
+      <group position={[-3.48, 0, -0.52]}>
         <mesh position={[0, 0.43, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.96, 0.86, 2.92]} />
+          <boxGeometry args={[0.98, 0.86, 2.92]} />
           <meshStandardMaterial color="#e8d9c5" roughness={0.75} />
         </mesh>
         <mesh position={[0, 0.89, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1.02, 0.07, 2.96]} />
+          <boxGeometry args={[1.04, 0.07, 2.96]} />
           <meshStandardMaterial color="#fff9f0" roughness={0.45} />
         </mesh>
-        {/* Sink basin */}
         <mesh position={[0.04, 0.935, 0]}>
           <boxGeometry args={[0.52, 0.03, 0.72]} />
           <meshStandardMaterial color="#9eb0bf" roughness={0.28} metalness={0.72} />
         </mesh>
-        {/* Faucet */}
         <mesh position={[-0.25, 1.12, 0]} castShadow>
           <cylinderGeometry args={[0.025, 0.025, 0.36, 8]} />
           <meshStandardMaterial color="#dce4ec" roughness={0.22} metalness={0.85} />
@@ -208,7 +245,7 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
         </mesh>
       </group>
 
-      {/* Center Compact Breakfast Island with real sculpted fruit/veg bowl */}
+      {/* Center Compact Breakfast Island with sculpted fruit/veg bowl */}
       <group position={[0, 0, 1.0]}>
         <mesh position={[0, 0.41, 0]} castShadow receiveShadow>
           <boxGeometry args={[1.52, 0.82, 0.84]} />
@@ -218,12 +255,10 @@ export function KitchenRoom({ onTapFloor }: KitchenRoomProps) {
           <boxGeometry args={[1.62, 0.08, 0.92]} />
           <meshStandardMaterial color="#f5e6d3" roughness={0.5} />
         </mesh>
-        {/* Ceramic fruit bowl */}
         <mesh position={[0, 0.94, 0]} castShadow>
           <cylinderGeometry args={[0.28, 0.18, 0.1, 16]} />
           <meshStandardMaterial color="#e07a5f" roughness={0.45} />
         </mesh>
-        {/* Recognizable sculpted tomato, strawberry & green pepper inside bowl */}
         <group position={[-0.08, 0.95, 0.04]} scale={0.75}>
           <ModelSlot assetId="food_domates" placeholder={null} />
         </group>

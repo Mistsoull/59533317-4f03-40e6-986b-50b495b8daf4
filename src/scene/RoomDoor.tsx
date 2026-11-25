@@ -78,69 +78,35 @@ export function RoomDoor({
         onPointerDown={handleDown}
         onPointerUp={handleUp}
       >
-        {wall === 'right' ? (
-          /* Cozy low swinging bistro saloon doors on cutaway right edge so camera view stays 100% open */
-          <>
-            <mesh position={[0.04, 0.62, -0.54]} castShadow receiveShadow>
-              <boxGeometry args={[0.12, 1.24, 0.1]} />
-              <meshStandardMaterial color="#8c5a34" roughness={0.72} />
-            </mesh>
-            <mesh position={[0.04, 0.62, 0.54]} castShadow receiveShadow>
-              <boxGeometry args={[0.12, 1.24, 0.1]} />
-              <meshStandardMaterial color="#8c5a34" roughness={0.72} />
-            </mesh>
-            {/* Swinging café half-doors */}
-            <mesh position={[0.06, 0.66, -0.24]} castShadow>
-              <boxGeometry args={[0.07, 0.86, 0.44]} />
-              <meshStandardMaterial color={accentColor} roughness={0.55} />
-            </mesh>
-            <mesh position={[0.06, 0.66, 0.24]} castShadow>
-              <boxGeometry args={[0.07, 0.86, 0.44]} />
-              <meshStandardMaterial color={accentColor} roughness={0.55} />
-            </mesh>
-            {/* Brass push plates */}
-            <mesh position={[0.1, 0.72, -0.1]}>
-              <boxGeometry args={[0.015, 0.2, 0.06]} />
-              <meshStandardMaterial color="#f2cc8f" roughness={0.25} metalness={0.8} />
-            </mesh>
-            <mesh position={[0.1, 0.72, 0.1]}>
-              <boxGeometry args={[0.015, 0.2, 0.06]} />
-              <meshStandardMaterial color="#f2cc8f" roughness={0.25} metalness={0.8} />
-            </mesh>
-          </>
-        ) : (
-          <>
-            {/* Outer wood frame */}
-            <mesh position={[0.04, 1.02, 0]} castShadow receiveShadow>
-              <boxGeometry args={[0.14, 2.04, 1.12]} />
-              <meshStandardMaterial color="#8c5a34" roughness={0.72} />
-            </mesh>
-            {/* Painted door leaf */}
-            <mesh position={[0.09, 0.98, 0]} castShadow>
-              <boxGeometry args={[0.08, 1.9, 0.94]} />
-              <meshStandardMaterial color={accentColor} roughness={0.55} />
-            </mesh>
-            {/* Upper glass pane */}
-            <mesh position={[0.135, 1.42, 0]}>
-              <boxGeometry args={[0.02, 0.62, 0.62]} />
-              <meshStandardMaterial
-                color="#d8f3ff"
-                emissive="#fff6df"
-                emissiveIntensity={0.35}
-                roughness={0.2}
-              />
-            </mesh>
-            {/* Brass doorknob */}
-            <mesh position={[0.16, 0.92, 0.34]}>
-              <sphereGeometry args={[0.048, 10, 10]} />
-              <meshStandardMaterial color="#f2cc8f" roughness={0.25} metalness={0.8} />
-            </mesh>
-          </>
-        )}
+        {/* Outer wood frame */}
+        <mesh position={[0.04, 1.02, 0]} castShadow receiveShadow>
+          <boxGeometry args={[0.14, 2.04, 1.12]} />
+          <meshStandardMaterial color="#8c5a34" roughness={0.72} />
+        </mesh>
+        {/* Painted door leaf */}
+        <mesh position={[0.09, 0.98, 0]} castShadow>
+          <boxGeometry args={[0.08, 1.9, 0.94]} />
+          <meshStandardMaterial color={accentColor} roughness={0.55} />
+        </mesh>
+        {/* Upper glass pane */}
+        <mesh position={[0.135, 1.42, 0]}>
+          <boxGeometry args={[0.02, 0.62, 0.62]} />
+          <meshStandardMaterial
+            color="#d8f3ff"
+            emissive="#fff6df"
+            emissiveIntensity={0.35}
+            roughness={0.2}
+          />
+        </mesh>
+        {/* Brass doorknob */}
+        <mesh position={[0.16, 0.92, 0.34]}>
+          <sphereGeometry args={[0.048, 10, 10]} />
+          <meshStandardMaterial color="#f2cc8f" roughness={0.25} metalness={0.8} />
+        </mesh>
 
         {/* Floating door sign */}
         <Html
-          position={[0.22, wall === 'right' ? 1.45 : 2.05, 0]}
+          position={[0.24, 2.05, 0]}
           center
           zIndexRange={[5, 0]}
           wrapperClass="pointer-events-none"

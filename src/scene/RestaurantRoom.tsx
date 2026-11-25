@@ -31,12 +31,16 @@ function useBistroParquetTexture(): THREE.CanvasTexture {
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(6, 5);
+    tex.repeat.set(14, 12);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }, []);
 }
 
+/**
+ * Full-screen enclosed 3-walled interior Bistro Dining Room ("Restoran Salonu").
+ * Seamless floor & tall perimeter walls fill 100% of the viewport with zero outer void.
+ */
 export function RestaurantRoom({ onTapFloor }: RestaurantRoomProps) {
   const floorTexture = useBistroParquetTexture();
   const restaurantOpen = useGameStore((s) => s.restaurantOpen);
@@ -61,55 +65,80 @@ export function RestaurantRoom({ onTapFloor }: RestaurantRoomProps) {
 
   return (
     <group>
-      {/* Warm wood parquet dining room floor (8m x 6m, y = 0) */}
+      {/* Seamless full-interior parquet floor extending well past camera frustum */}
       <mesh
-        position={[0, -0.1, 0]}
+        position={[0, -0.05, 1.5]}
         receiveShadow
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
       >
-        <boxGeometry args={[8, 0.2, 6]} />
+        <boxGeometry args={[24, 0.1, 22]} />
         <meshStandardMaterial map={floorTexture} roughness={0.8} />
       </mesh>
 
-      {/* Dark walnut trim plinth */}
-      <mesh position={[0, -0.25, 0]}>
-        <boxGeometry args={[8.26, 0.14, 6.26]} />
-        <meshStandardMaterial color="#6e472b" roughness={0.85} />
+      {/* Cozy woven dining area rug accent */}
+      <mesh position={[-0.35, 0.004, 0.4]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[5.8, 3.8]} />
+        <meshStandardMaterial color="#f5e6d3" transparent opacity={0.22} roughness={0.95} />
       </mesh>
 
-      {/* Back Wall (z = -3) — Cozy cream stucco + warm wainscoting */}
-      <mesh position={[0, 1.35, -3.08]} receiveShadow>
-        <boxGeometry args={[8.16, 2.7, 0.16]} />
+      {/* ==================== TALL ENCLOSING BACK WALL (z = -3.15) ==================== */}
+      <mesh position={[0, 3.2, -3.15]} receiveShadow>
+        <boxGeometry args={[18, 6.4, 0.2]} />
         <meshStandardMaterial color="#fff6e9" roughness={0.88} />
       </mesh>
-      <mesh position={[0, 0.45, -2.99]} receiveShadow>
-        <boxGeometry args={[8.0, 0.9, 0.03]} />
+      <mesh position={[0, 0.52, -3.03]} receiveShadow>
+        <boxGeometry args={[17.8, 1.04, 0.04]} />
         <meshStandardMaterial color="#d4a373" roughness={0.78} />
       </mesh>
+      <mesh position={[0, 1.06, -3.01]}>
+        <boxGeometry args={[17.8, 0.07, 0.07]} />
+        <meshStandardMaterial color="#8c5a34" roughness={0.68} />
+      </mesh>
 
-      {/* Left Wall (x = -4) — connects back to Kitchen */}
-      <mesh position={[-4.08, 1.35, 0]} receiveShadow>
-        <boxGeometry args={[0.16, 2.7, 6.16]} />
+      {/* ==================== TALL ENCLOSING LEFT WALL (x = -4.18) ==================== */}
+      <mesh position={[-4.18, 3.2, 1.5]} receiveShadow>
+        <boxGeometry args={[0.2, 6.4, 16]} />
         <meshStandardMaterial color="#f9efe1" roughness={0.88} />
       </mesh>
-      <mesh position={[-3.99, 0.45, 0]} receiveShadow>
-        <boxGeometry args={[0.03, 0.9, 6.0]} />
+      <mesh position={[-4.06, 0.52, 1.5]} receiveShadow>
+        <boxGeometry args={[0.04, 1.04, 15.8]} />
         <meshStandardMaterial color="#d4a373" roughness={0.78} />
       </mesh>
+      <mesh position={[-4.04, 1.06, 1.5]}>
+        <boxGeometry args={[0.07, 0.07, 15.8]} />
+        <meshStandardMaterial color="#8c5a34" roughness={0.68} />
+      </mesh>
 
-      {/* Cozy Menu Chalkboard on Back Wall */}
-      <group position={[-0.3, 1.72, -2.96]}>
+      {/* ==================== TALL ENCLOSING RIGHT WALL (x = +4.18) ==================== */}
+      <mesh position={[4.18, 3.2, 1.5]} receiveShadow>
+        <boxGeometry args={[0.2, 6.4, 16]} />
+        <meshStandardMaterial color="#f9efe1" roughness={0.88} />
+      </mesh>
+      <mesh position={[4.06, 0.52, 1.5]} receiveShadow>
+        <boxGeometry args={[0.04, 1.04, 15.8]} />
+        <meshStandardMaterial color="#d4a373" roughness={0.78} />
+      </mesh>
+      <mesh position={[4.04, 1.06, 1.5]}>
+        <boxGeometry args={[0.07, 0.07, 15.8]} />
+        <meshStandardMaterial color="#8c5a34" roughness={0.68} />
+      </mesh>
+
+      {/* Cozy Bistro Wall Art & Warm Sconce on Right Wall */}
+      <group position={[4.04, 1.85, 0.3]}>
         <mesh castShadow>
-          <boxGeometry args={[2.1, 0.96, 0.06]} />
-          <meshStandardMaterial color="#7f4f24" roughness={0.75} />
+          <boxGeometry args={[0.06, 0.85, 1.1]} />
+          <meshStandardMaterial color="#7f4f24" roughness={0.72} />
         </mesh>
-        <mesh position={[0, 0, 0.035]}>
-          <boxGeometry args={[1.92, 0.8, 0.02]} />
-          <meshStandardMaterial color="#2b3a34" roughness={0.88} />
+        <mesh position={[-0.035, 0, 0]}>
+          <boxGeometry args={[0.02, 0.72, 0.96]} />
+          <meshStandardMaterial color="#f4d5b2" roughness={0.85} />
         </mesh>
-        {/* Warm brass sconce lamps flanking menu board */}
-        <mesh position={[-1.32, 0.15, 0.12]}>
+        <mesh position={[-0.048, 0.04, 0]}>
+          <boxGeometry args={[0.015, 0.34, 0.42]} />
+          <meshStandardMaterial color="#e07a5f" roughness={0.75} />
+        </mesh>
+        <mesh position={[-0.1, 0.08, -0.82]}>
           <sphereGeometry args={[0.085, 10, 10]} />
           <meshStandardMaterial
             color="#fff3b0"
@@ -118,7 +147,28 @@ export function RestaurantRoom({ onTapFloor }: RestaurantRoomProps) {
             roughness={0.3}
           />
         </mesh>
-        <mesh position={[1.32, 0.15, 0.12]}>
+      </group>
+
+      {/* Cozy Menu Chalkboard on Back Wall */}
+      <group position={[-0.25, 1.82, -2.99]}>
+        <mesh castShadow>
+          <boxGeometry args={[2.15, 0.98, 0.06]} />
+          <meshStandardMaterial color="#7f4f24" roughness={0.75} />
+        </mesh>
+        <mesh position={[0, 0, 0.035]}>
+          <boxGeometry args={[1.96, 0.82, 0.02]} />
+          <meshStandardMaterial color="#2b3a34" roughness={0.88} />
+        </mesh>
+        <mesh position={[-1.34, 0.15, 0.12]}>
+          <sphereGeometry args={[0.085, 10, 10]} />
+          <meshStandardMaterial
+            color="#fff3b0"
+            emissive="#ffd166"
+            emissiveIntensity={0.7}
+            roughness={0.3}
+          />
+        </mesh>
+        <mesh position={[1.34, 0.15, 0.12]}>
           <sphereGeometry args={[0.085, 10, 10]} />
           <meshStandardMaterial
             color="#fff3b0"
@@ -130,17 +180,17 @@ export function RestaurantRoom({ onTapFloor }: RestaurantRoomProps) {
       </group>
 
       {/* Decorative Kitchen Pass Window on Left Wall above Service Pass */}
-      <group position={[-3.97, 1.55, -2.2]}>
+      <group position={[-4.04, 1.62, -2.2]}>
         <mesh>
-          <boxGeometry args={[0.08, 0.95, 1.55]} />
+          <boxGeometry args={[0.08, 0.96, 1.52]} />
           <meshStandardMaterial color="#7f4f24" roughness={0.72} />
         </mesh>
-        <mesh position={[0.03, 0, 0]}>
-          <boxGeometry args={[0.03, 0.78, 1.38]} />
+        <mesh position={[0.048, 0, 0]}>
+          <boxGeometry args={[0.02, 0.8, 1.36]} />
           <meshStandardMaterial
             color="#ffe8c2"
             emissive="#ffcf87"
-            emissiveIntensity={0.4}
+            emissiveIntensity={0.42}
             roughness={0.35}
           />
         </mesh>
@@ -149,14 +199,14 @@ export function RestaurantRoom({ onTapFloor }: RestaurantRoomProps) {
       {/* Street Entrance Door on Back-Right Wall where Customer NPCs enter & exit */}
       <group position={[ex, ey, ez]}>
         <mesh position={[0, 1.05, 0.04]} castShadow receiveShadow>
-          <boxGeometry args={[1.26, 2.1, 0.14]} />
+          <boxGeometry args={[1.26, 2.1, 0.12]} />
           <meshStandardMaterial color="#7f4f24" roughness={0.72} />
         </mesh>
-        <mesh position={[0, 1.0, 0.08]} castShadow>
-          <boxGeometry args={[1.06, 1.96, 0.06]} />
+        <mesh position={[0, 1.0, 0.095]} castShadow>
+          <boxGeometry args={[1.06, 1.96, 0.05]} />
           <meshStandardMaterial color="#3d5a80" roughness={0.55} />
         </mesh>
-        <mesh position={[0, 1.34, 0.115]}>
+        <mesh position={[0, 1.34, 0.13]}>
           <boxGeometry args={[0.76, 0.85, 0.02]} />
           <meshStandardMaterial
             color="#cdeeff"
@@ -166,8 +216,8 @@ export function RestaurantRoom({ onTapFloor }: RestaurantRoomProps) {
           />
         </mesh>
         {/* Glowing OPEN / CLOSED door sign */}
-        <mesh position={[0, 1.32, 0.135]}>
-          <boxGeometry args={[0.46, 0.2, 0.025]} />
+        <mesh position={[0, 1.32, 0.15]}>
+          <boxGeometry args={[0.46, 0.2, 0.02]} />
           <meshStandardMaterial
             color={restaurantOpen ? '#22c55e' : '#ef4444'}
             emissive={restaurantOpen ? '#16a34a' : '#dc2626'}
@@ -182,14 +232,24 @@ export function RestaurantRoom({ onTapFloor }: RestaurantRoomProps) {
         </mesh>
       </group>
 
-      {/* Cozy potted plant in front-left corner */}
-      <group position={[-3.45, 0, 0.5]}>
+      {/* Cozy potted plants framing the dining room corners */}
+      <group position={[-3.55, 0, 0.55]}>
         <mesh position={[0, 0.18, 0]} castShadow>
           <cylinderGeometry args={[0.2, 0.15, 0.36, 10]} />
           <meshStandardMaterial color="#c86b4b" roughness={0.78} />
         </mesh>
         <mesh position={[0, 0.52, 0]} castShadow>
           <dodecahedronGeometry args={[0.28, 0]} />
+          <meshStandardMaterial color="#40916c" roughness={0.75} />
+        </mesh>
+      </group>
+      <group position={[3.62, 0, 2.25]}>
+        <mesh position={[0, 0.22, 0]} castShadow>
+          <cylinderGeometry args={[0.22, 0.16, 0.44, 10]} />
+          <meshStandardMaterial color="#c86b4b" roughness={0.78} />
+        </mesh>
+        <mesh position={[0, 0.62, 0]} castShadow>
+          <dodecahedronGeometry args={[0.3, 0]} />
           <meshStandardMaterial color="#40916c" roughness={0.75} />
         </mesh>
       </group>

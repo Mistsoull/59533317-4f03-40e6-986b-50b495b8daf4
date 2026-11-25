@@ -87,11 +87,11 @@ src/
     assets/                           # assetManifest, ModelSlot (+ fallback placeholders)
     entities/                         # LocalPlayer, RemotePlayer, WaiterNpc (2D A* otomatik servis), RestaurantGuests (yürüyen müşteriler)
     stations/                         # StationInteractable, MarketStallInteractable, ServicePassInteractable, RestaurantTableInteractable
-    IsometricCamera.tsx               # Çift modlu kamera (Mutfak & Restoran Orthographic, Market Perspective)
+    IsometricCamera.tsx               # Tam ekran 3 duvarlı iç mekan PerspectiveCamera (Mutfak, Restoran ve Market — sıfır dış boşluk)
     KitchenCanvas.tsx                 # WebGL 2 Canvas, ışıklar, 3 oda geçişi (unmount olmadan visible)
-    KitchenRoom.tsx                   # 8m x 6m Mutfak sahnesi ve duvar/tezgah dekoru
+    KitchenRoom.tsx                   # Kapalı 3 duvarlı tam ekran Mutfak sahnesi ve duvar/tezgah dekoru
     MarketRoom.tsx                    # Kapalı 3 duvarlı tam ekran Mahalle Marketi sahnesi
-    RestaurantRoom.tsx                # 8m x 6m bistro Restoran Salonu (3 masa, sokak girişi, servis pası)
+    RestaurantRoom.tsx                # Kapalı 3 duvarlı tam ekran Restoran Salonu (3 masa, sokak girişi, servis pası)
     RoomDoor.tsx                      # Mutfak <-> Market ve Mutfak <-> Restoran yürüyerek geçiş kapıları
     TargetMarker.tsx                  # Zemin dokunma hedef halkası
   services/
@@ -113,10 +113,10 @@ src/
 ## 5. Şimdiye Kadar Yapılanlar (Güncel Özellik Envanteri)
 
 ### Oyun Mekaniği, 3D Sahne ve Kamera
-- **Mutfak Sahnesi (`KitchenRoom`):** 8m × 6m ızgara, engelsiz sağ arka duvarda **Buzdolabı** (`[3.22, 0, -2.42]`), orta-sol **Kesme Tahtası**, sağ-orta **Ocak**, sol duvarda **Market Kapısı**, sağ kenarda Buzdolabı/Ocak koridoruyla çakışmayan **Servis Zili / Bankosu** (`[3.68, 0, 0.38]`) ve alçak bistro **Restoran Kapısı** (`[3.95, 0, 2.05]`). Kamera: klasik izometrik `OrthographicCamera` (`[10.5, 10.2, 13.0]`, `lookAt(0, 0.72, -0.22)`).
+- **Mutfak Sahnesi (`KitchenRoom`):** Market gibi etrafında boşluk bırakmayan, 3 duvarlı tam ekran kapalı iç mekan çapraz `PerspectiveCamera` açısı (`[1.45, 5.35, 7.45]`, `lookAt(-0.1, 0.65, -0.65)`). 8m × 6m yürünebilir ızgara, engelsiz sağ arka duvarda **Buzdolabı** (`[3.22, 0, -2.42]`), orta-sol **Kesme Tahtası**, sağ-orta **Ocak**, sol duvarda **Market Kapısı**, sağ duvarda servis penceresi, **Servis Zili / Bankosu** (`[3.68, 0, 0.38]`) ve tam **Restoran Kapısı** (`[3.95, 0, 2.05]`).
 - **Yürünebilir 3D Mahalle Marketi (`MarketRoom`):** HUD'da ışınlanma butonu yoktur; yalnızca kapılara yürüyerek geçilir. Etrafında boşluk bırakmayan, 3 duvarlı tam ekran kapalı iç mekan çapraz `PerspectiveCamera` açısı (`[2.35, 5.0, 6.7]`, `lookAt(-0.35, 0.92, -1.35)`). 3 etkileşimli tezgah (**Manav**, **Süt & Yumurta**, **Kuru Gıda**) ve sol arka duvarda **Mutfağa Dön** kapısı (`[-3.28, 0, -3.02]`).
 - **Yürünebilir 3D Restoran Salonu & Otomatik Garson NPC (`RestaurantRoom`, `WaiterNpc`, `RestaurantGuests`):**
-  - Mutfak'taki sağ bistro kapısından yürüyerek geçilen 8m × 6m sıcak bistro salonu (izometrik `OrthographicCamera`), 3 bistro masası, sokak giriş kapısı ve restoran tarafı servis bankosu.
+  - Mutfak'taki sağ bistro kapısından yürüyerek geçilen, etrafında boşluk bırakmayan 3 duvarlı tam ekran kapalı iç mekan (`PerspectiveCamera` `[1.45, 5.35, 7.45]`, `lookAt(-0.1, 0.65, -0.65)`), 3 bistro masası, sokak giriş kapısı ve restoran tarafı servis bankosu.
   - **Manuel Açılış & Deterministik Host:** `home_state.restaurant_open` varsayılanı `false` (servis manuel açılır). Oturum açılışında süresi dolmuş siparişler sessizce temizlenir. Presence üzerinden `p1` öncelikli Host seçimi + sunucu taraflı 8 sn cooldown + aktif masa limiti (1 kişi max 2, 2 kişi max 3 masa) + `get_server_time()` ile `clockOffsetMs` saat sapması telafisi çalışır.
   - **Zorluk Seviyesine Göre Teslim Süreleri & Cozy Mod:** Menemen (Kolay `90 sn`), Çilekli Pankek (Orta `120 sn`), Kremalı Mantarlı Makarna (Zor `150 sn`); tek oyuncuda otomatik `×1.35`. Kalan süre `>%50` ise hızlı servis bahşişi (`+%25`/`+%30`), `%20–%50` normal ücret, `<%20` `%85` ücret; süre dolunca **Cozy Mod** gereği coin cezası yok, sadece seri sıfırlanır.
   - **Otomatik Garson Teslimatı:** Pişen yemekler `stage = 'cooked'` stoğuna girer. Oyuncular tabağı elle taşımaz; tüm odalarda görünen `OrderTicketBar` (`350ms` hafif tik) veya `ServicePassModal` üzerinden **"Hazır / Gönder"** basıldığı an `serve_restaurant_order` RPC süreyi dondurup (`status = 'delivering'`) coin + bahşişi kilitler (garson yürürken sipariş asla zaman aşımına uğramaz). 3D **Garson NPC (`waiter.glb`)** 2D A* ile tabağı masaya götürür, müşteri ~4 sn yiyip kapıdan çıkar (sıfır DB pozisyon yazımı; 3D masa süre barları `useFrame` Three.js ref ile güncellenir).
@@ -187,4 +187,5 @@ Diğer yardımcı komutlar:
 | 2026-11-25 | `cc15f26` | Market kamerası kullanıcı geri bildirimi üzerine önceki tam ekran çapraz iç mekan açısına (`[2.35, 5.0, 6.7]`) geri alındı. |
 | 2026-11-25 | `5263954` | Giriş ekranında canlı Presence ile oyundaki oyuncu slotu ve karakterini tıklanamaz yapma, boş slota/karaktere otomatik geçiş ve `lobbyOccupancy` birim testleri eklendi. |
 | 2026-11-25 | `b849492` | Proje özeti, teknoloji yığını, mimari ve değişiklik günlüğünü içeren `AGENTS.md` oluşturuldu; `.agents/rules/kitchen-game-rules.md` içine her güncellemede `AGENTS.md` güncelleme zorunluluğu eklendi. |
-| 2026-11-25 | *(güncel)* | Mutfak'a bağlı yürünebilir **3D Restoran Salonu** (3 masa), yürüyen 3D müşteri NPC'leri, otomatik 3D **Garson NPC** (`waiter.glb`), zorluk bazlı teslim süreleri (90/120/150sn + tek kişi ×1.35 + Cozy Mod), manuel restoran açılışı, deterministik Host + sunucu cooldown/limit, `clockOffsetMs`, tüm odalarda canlı `OrderTicketBar`, `ServicePassModal`, `sell_cooked_dish` RPC, 8 yeni Draco `.glb` ve `005_restaurant_orders.sql` canlı Supabase Cloud kurulumu eklendi. |
+| 2026-11-25 | `cd46a52` | Mutfak'a bağlı yürünebilir **3D Restoran Salonu** (3 masa), yürüyen 3D müşteri NPC'leri, otomatik 3D **Garson NPC** (`waiter.glb`), zorluk bazlı teslim süreleri (90/120/150sn + tek kişi ×1.35 + Cozy Mod), manuel restoran açılışı, deterministik Host + sunucu cooldown/limit, `clockOffsetMs`, tüm odalarda canlı `OrderTicketBar`, `ServicePassModal`, `sell_cooked_dish` RPC, 8 yeni Draco `.glb` ve `005_restaurant_orders.sql` canlı Supabase Cloud kurulumu eklendi. |
+| 2026-11-25 | *(güncel)* | Mutfak (`KitchenRoom`) ve Restoran (`RestaurantRoom`) da Market gibi etrafında hiç boşluk bırakmayan 3 duvarlı tam ekran kapalı iç mekan `PerspectiveCamera` (`[1.45, 5.35, 7.45]`, `lookAt(-0.1, 0.65, -0.65)`) mimarisine geçirildi; Mutfak sağ duvarına servis penceresi ve tam boy bistro kapısı eklendi. |
